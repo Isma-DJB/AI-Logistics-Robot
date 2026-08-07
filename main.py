@@ -1,5 +1,10 @@
-print("====================================")
-print("Bienvenue dans Ismail AI Robotics Lab 🤖")
-print("Projet 001 : Smart Logistics Robot")
-print("Python fonctionne correctement !")
-print("====================================")
+from src.brain.robot_brain import RobotBrain
+
+
+brain = RobotBrain()
+
+camera_data = "person"
+
+result = brain.analyze(camera_data)
+
+print(result)
