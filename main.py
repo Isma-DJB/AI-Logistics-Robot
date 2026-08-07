@@ -3,8 +3,9 @@ from src.brain.robot_brain import RobotBrain
 
 brain = RobotBrain()
 
-camera_data = "person"
+camera_data = "box"
 
 result = brain.analyze(camera_data)
 
-print(result)
+print(result["object"])
+print(result["action"])

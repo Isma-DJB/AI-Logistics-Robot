@@ -1,13 +1,25 @@
 class RobotBrain:
     def analyze(self, data):
         if data == "box":
-            return "Action: pick up the box"
+            return {
+                "object": "box",
+                "action": "pick_up"
+            }
 
         elif data == "pallet":
-            return "Action: move around the pallet"
+            return {
+                "object": "pallet",
+                "action": "move_around"
+            }
 
         elif data == "person":
-            return "Action: stop"
+            return {
+                "object": "person",
+                "action": "stop"
+            }
 
         else:
-            return "Action: investigate"
+            return {
+                "object": "unknown",
+                "action": "investigate"
+            }
