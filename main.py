@@ -1,0 +1,5 @@
+print("====================================")
+print("Bienvenue dans Ismail AI Robotics Lab 🤖")
+print("Projet 001 : Smart Logistics Robot")
+print("Python fonctionne correctement !")
+print("====================================")
