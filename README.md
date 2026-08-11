@@ -1,191 +1,75 @@
-# AI Logistics Robot 
+# AI-Logistics-Robot
 
-## Project Overview
+AI-Logistics-Robot is a modular autonomous-logistics-robot project developed through simulation first and physical integration second.
 
-AI Logistics Robot is a robotics project focused on designing an intelligent logistics assistant capable of perceiving its environment, making decisions, and executing autonomous tasks.
+The Version 1 mission is triggered by a light target. One robot travels to a safe cell near that target, avoids obstacles, simulates collection, and returns to its base using the path of confirmed outbound poses.
 
-The project explores the integration of:
+## Current status
 
-- Computer Vision
-- Artificial Intelligence
-- Robotics Architecture
-- Decision Making
-- Automation Systems
+**Implementation Draft I-0.1 — project skeleton and Python environment**
 
+This draft establishes the repository structure, packaging, baseline configuration, documentation, and structural checks. Mission behavior is intentionally not implemented yet.
 
-## Current Architecture
+## Architecture
 
-The project follows a modular robotics architecture:
+The V1 core is divided into the following modules:
 
+- `domain`: immutable data objects, enumerations, and domain rules;
+- `ports`: public contracts known by the core;
+- `brain`: mission orchestration and state machine;
+- `planning`: path calculation and validation;
+- `perception`: normalized observations and local hazard information;
+- `control`: motion-step construction and safety operations;
+- `memory`: confirmed path, events, and mission result;
+- `adapters`: simulation, visualization, monitoring, and physical hardware;
+- `app`: configuration, dependency assembly, and execution loop.
 
-Environment
-|
-v
-Perception Layer
-(Camera / Sensors)
-|
-v
-Brain Layer
-(Decision Making)
-|
-v
-Action Layer
-(Control Commands)
-|
-v
-Robot Hardware
+Concrete platforms remain behind adapters. The Brain must never import Pygame, GridWorld, Arduino, or ESP32-specific code.
 
+## Requirements
 
+- Python 3.11 or newer
+- Git
+- VS Code with the Python extension recommended
 
-## Current Implemented Modules
+## Local setup
 
-###  Perception Module
+### Windows PowerShell
 
-Location:
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
 
+### Linux or macOS
 
-src/perception/
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
 
+Install the optional simulation dependency when the Pygame work begins:
 
-Current capabilities:
+```bash
+python -m pip install -e ".[dev,simulation]"
+```
 
-- Camera initialization using OpenCV
-- Basic perception testing
+## Verification
 
+```bash
+python tools/check_project_structure.py
+python -m unittest discover -s tests -p "test_*.py"
+python -m ai_logistics_robot
+```
 
-###  Brain Module
+## Documentation
 
-Location:
+- [`docs/requirements/v1`](docs/requirements/v1/) contains the preserved V1 requirements drafts.
+- [`docs/architecture`](docs/architecture/) contains diagrams and architecture decisions.
+- [`docs/implementation`](docs/implementation/) contains implementation-session records.
 
-
-src/brain/
-
-
-Current capabilities:
-
-- Object interpretation
-- Decision logic
-- Structured robot commands
-
-
-Example:
-
-Input:
-
-
-box
-
-
-Output:
-
-```json
-{
-    "object": "box",
-    "action": "pick_up"
-}
-
-Future Development Roadmap
-
-Planning Module
-Responsible for:
-
-Task planning
-Mission management
-Decision sequences
-
-Location:
-src/planning/
-
-Control Module
-Responsible for:
-
-Robot movement commands
-Motor control interface
-Hardware communication
-
-Location:
-src/control/
-
-Memory Module
-Responsible for:
-
-Knowledge storage
-Environment information
-Learning data
-
-Location:
-src/memory/
-
-Simulation Module
-Responsible for:
-
-Virtual robot testing
-Environment simulation
-Algorithm validation
-
-Location:
-src/simulation/
-
-Project Structure
-
-AI_Logistics_Robot/
-
-├── main.py
-
-├── src/
-│
-├── perception/
-│   └── camera.py
-│
-├── brain/
-│   ├── __init__.py
-│   └── robot_brain.py
-│
-├── planning/
-│
-├── control/
-│
-├── memory/
-│
-└── simulation/
-
-
-├── tests/
-
-├── data/
-
-├── docs/
-
-└── README.md
-
-Development Environment
-
-Python:
-3.12
-
-Main libraries:
-
-OpenCV
-NumPy
-
-Development Status
-
-Current stage:
-
-Phase 1 - Basic Robotics Architecture
-
-Completed:
-
-Project environment setup
-Git/GitHub integration
-Camera perception module
-Basic robot decision brain
-Structured robot commands
-
-Future:
-
-AI object detection
-Task planning
-Robot control
-Simulation
-Autonomous behavior
+Repository documentation is maintained in English. Personal learning records may also be produced separately in French.
