@@ -1,0 +1,1 @@
+"""Passive visualization-adapter package."""

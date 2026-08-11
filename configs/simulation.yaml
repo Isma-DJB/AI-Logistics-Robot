@@ -1,0 +1,45 @@
+schema_version: 1
+
+scenario:
+  id: v1-reference
+  clock: simulated
+  random_seed: 1001
+
+grid:
+  width: 10
+  height: 10
+  cell_size_cm: 20
+  origin: [0, 0]
+  layers:
+    - terrain
+    - semantic
+    - dynamic
+
+base:
+  position: [1, 1]
+
+robot:
+  id: robot_1
+  initial_pose:
+    x: 1
+    y: 1
+    heading: NORTH
+  simulated_footprint_cells: 1
+
+target:
+  id: target_1
+  position: [8, 7]
+  arrival_policy: adjacent_safe_cell
+  debounce_ms: null
+  confidence_threshold: null
+
+obstacles:
+  - [1, 4]
+  - [2, 4]
+  - [3, 4]
+  - [5, 6]
+
+mission:
+  collection_duration_s: 3
+  maximum_replans: null
+  timeout_s: null

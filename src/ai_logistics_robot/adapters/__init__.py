@@ -1,0 +1,1 @@
+"""Replaceable platform-adapter package."""

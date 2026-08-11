@@ -1,0 +1,26 @@
+schema_version: 1
+
+robot:
+  id: robot_1
+  platform: sunfounder_ultimate_kit
+  enabled: false
+
+physical_dimensions:
+  width_cm: null
+  length_cm: null
+  turning_radius_cm: null
+  safety_margin_cm: null
+
+motion:
+  forward_speed: null
+  turn_speed: null
+  forward_cell_duration_ms: null
+  quarter_turn_duration_ms: null
+
+sensors:
+  local_obstacle_detection_enabled: false
+
+camera:
+  provider: esp32_cam
+  enabled: false
+  immediate_safety_dependency: false

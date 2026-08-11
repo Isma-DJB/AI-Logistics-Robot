@@ -1,0 +1,10 @@
+schema_version: 1
+
+logging:
+  level: INFO
+  destination: stdout
+  format: structured
+  include_timestamp: true
+  include_scenario_id: true
+  include_mission_id: true
+  include_robot_id: true
