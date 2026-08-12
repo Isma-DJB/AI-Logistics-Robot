@@ -93,3 +93,11 @@ class FailureReason(StrEnum):
     COMMUNICATION_LOSS = "COMMUNICATION_LOSS"
     EMERGENCY_STOP = "EMERGENCY_STOP"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+
+@unique
+class CellLayer(StrEnum):
+    """Logical data layers maintained by the V1 grid map."""
+
+    TERRAIN = "terrain"
+    SEMANTIC = "semantic"
+    DYNAMIC = "dynamic"

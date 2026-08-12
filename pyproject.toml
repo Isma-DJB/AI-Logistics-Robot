@@ -19,12 +19,14 @@ dependencies = [
 simulation = [
     "pygame>=2.6,<3",
 ]
+
 dev = [
     "build>=1.2,<2",
     "mypy>=1.14,<2",
     "pytest>=8,<10",
     "pytest-cov>=5,<8",
     "ruff>=0.9,<1",
+    "types-PyYAML>=6.0,<7",
 ]
 
 [project.scripts]
