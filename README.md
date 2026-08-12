@@ -6,16 +6,19 @@ The Version 1 mission is triggered by a light target. One robot travels to a saf
 
 ## Current status
 
-**Implementation Draft I-0.2 — domain model and validated configuration**
+**Implementation Draft I-0.3 — public ports and contracts**
 
-This draft implements immutable domain objects, enumerations, validation
-rules, GridMap spatial rules, and typed loading of the reference YAML
-configuration. Ports, mission orchestration, planning algorithms,
-simulation behavior, and hardware integration are intentionally not
-implemented yet.
+This draft implements the nine synchronous public ports that separate the
+V1 core from replaceable clock, perception, planning, control, memory,
+monitoring, simulation, and visualization implementations.
 
-The next approved implementation draft is I-0.3: ports and public
-contracts.
+The contracts use runtime-checkable `Protocol` classes and expose only
+immutable domain objects and standard-library types. Concrete adapters,
+mission orchestration, planning algorithms, simulation behavior, and
+hardware integration are intentionally not implemented yet.
+
+The next implementation draft will be selected after the final review and
+integration of I-0.3.
 
 ## Architecture
 
