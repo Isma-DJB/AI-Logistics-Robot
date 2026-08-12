@@ -6,9 +6,16 @@ The Version 1 mission is triggered by a light target. One robot travels to a saf
 
 ## Current status
 
-**Implementation Draft I-0.1 — project skeleton and Python environment**
+**Implementation Draft I-0.2 — domain model and validated configuration**
 
-This draft establishes the repository structure, packaging, baseline configuration, documentation, and structural checks. Mission behavior is intentionally not implemented yet.
+This draft implements immutable domain objects, enumerations, validation
+rules, GridMap spatial rules, and typed loading of the reference YAML
+configuration. Ports, mission orchestration, planning algorithms,
+simulation behavior, and hardware integration are intentionally not
+implemented yet.
+
+The next approved implementation draft is I-0.3: ports and public
+contracts.
 
 ## Architecture
 
@@ -63,6 +70,9 @@ python -m pip install -e ".[dev,simulation]"
 ```bash
 python tools/check_project_structure.py
 python -m unittest discover -s tests -p "test_*.py"
+python -m ruff check .
+python -m mypy src
+python -m pip check
 python -m ai_logistics_robot
 ```
 
