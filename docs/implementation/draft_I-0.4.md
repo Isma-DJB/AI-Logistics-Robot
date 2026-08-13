@@ -81,3 +81,25 @@ Verification:
 - 7 rejection and boundary tests passed.
 - The complete suite passed with 189 tests.
 - No GridWorld implementation change was required.
+
+## 5. Batch D - Public Integration
+
+GridWorld is now exported as the public headless simulation adapter and
+has been verified against the validated V1 reference configuration.
+
+Verified behavior:
+
+- GridWorld is importable from ai_logistics_robot.adapters.simulation.
+- The concrete adapter satisfies SimulationPort structurally.
+- The reference GridMap and initial RobotPose load from simulation.yaml.
+- A safe command fragment produces the expected confirmed pose.
+- reset enables an identical deterministic replay.
+- The configured collection duration advances simulated time to 3.0 seconds.
+- The reference obstacle at (1,4) rejects forward movement with BLOCKED.
+- No graphical or hardware dependency is required.
+
+Verification:
+
+- 4 reference-scenario integration tests passed.
+- The complete suite passed with 193 tests.
+- Ruff, mypy, and the I-0.1 structure check passed.
