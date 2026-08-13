@@ -4,15 +4,17 @@ from ai_logistics_robot import __version__
 
 
 def main() -> int:
-    """Report the currently implemented public-contract foundation."""
+    """Report the currently implemented simulation foundation."""
 
     print(
         f"AI-Logistics-Robot {__version__} "
-        "— Implementation Draft I-0.3"
+        "- Implementation Draft I-0.4"
     )
     print(
-        "Domain model, validated configuration, and public ports are ready. "
-        "Concrete adapters and mission execution are not implemented yet."
+        "Domain model, validated configuration, public ports, and "
+        "deterministic headless GridWorld behavior are ready. "
+        "Planning, Memory, Brain, Control, and physical execution "
+        "are not implemented yet."
     )
     return 0
 
