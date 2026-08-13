@@ -59,3 +59,25 @@ Verification:
 - The complete suite passed with 182 tests.
 - Ruff and mypy passed.
 - Detailed rejection cases remain assigned to Batch C.
+
+## 4. Batch C - Rejection and Boundary Rules
+
+GridWorld rejection behavior is now covered by dedicated tests.
+
+Verified behavior:
+
+- Commands for another robot are rejected before state mutation.
+- Invalid command objects are rejected before state mutation.
+- Every grid boundary rejects outward movement with OUT_OF_BOUNDS.
+- Shifted grid origins are handled without hard-coded coordinates.
+- Obstacles reject movement with BLOCKED.
+- The target cell rejects movement with BLOCKED.
+- Failed movement preserves pose_before and pose_after.
+- Failed movement preserves confirmed simulated time.
+- Valid commands can continue after a rejected movement.
+
+Verification:
+
+- 7 rejection and boundary tests passed.
+- The complete suite passed with 189 tests.
+- No GridWorld implementation change was required.
