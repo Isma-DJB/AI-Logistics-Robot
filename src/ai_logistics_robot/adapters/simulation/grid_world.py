@@ -2,9 +2,26 @@
 
 from math import isfinite
 
+from ai_logistics_robot.domain.commands import (
+    CommandResult,
+    MotionCommand,
+)
+from ai_logistics_robot.domain.enums import (
+    CommandStatus,
+    CommandType,
+    FailureReason,
+    Heading,
+)
 from ai_logistics_robot.domain.errors import DomainValidationError
-from ai_logistics_robot.domain.geometry import RobotPose
+from ai_logistics_robot.domain.geometry import Position, RobotPose
 from ai_logistics_robot.domain.world import GridMap
+
+_CARDINAL_HEADINGS = (
+    Heading.NORTH,
+    Heading.EAST,
+    Heading.SOUTH,
+    Heading.WEST,
+)
 
 
 def _validate_duration(seconds: object) -> float:
@@ -26,6 +43,43 @@ def _validate_duration(seconds: object) -> float:
         )
 
     return duration
+
+
+def _rotate_heading(
+    heading: Heading,
+    *,
+    quarter_turns: int,
+) -> Heading:
+    """Rotate one cardinal heading by signed quarter turns."""
+
+    current_index = _CARDINAL_HEADINGS.index(heading)
+    next_index = (
+        current_index + quarter_turns
+    ) % len(_CARDINAL_HEADINGS)
+
+    return _CARDINAL_HEADINGS[next_index]
+
+
+def _forward_position(pose: RobotPose) -> Position:
+    """Return the cell located directly ahead of one pose."""
+
+    if pose.heading is Heading.NORTH:
+        displacement = (0, 1)
+    elif pose.heading is Heading.EAST:
+        displacement = (1, 0)
+    elif pose.heading is Heading.SOUTH:
+        displacement = (0, -1)
+    elif pose.heading is Heading.WEST:
+        displacement = (-1, 0)
+    else:
+        raise DomainValidationError(
+            "pose heading is not supported by GridWorld."
+        )
+
+    return Position(
+        x=pose.position.x + displacement[0],
+        y=pose.position.y + displacement[1],
+    )
 
 
 class GridWorld:
@@ -97,6 +151,59 @@ class GridWorld:
 
         return self._world
 
+    def apply_command(
+        self,
+        command: MotionCommand,
+    ) -> CommandResult:
+        """Apply one validated command to the confirmed robot pose."""
+
+        if not isinstance(command, MotionCommand):
+            raise DomainValidationError(
+                "command must be a MotionCommand instance."
+            )
+
+        if command.robot_id != self._robot_id:
+            raise DomainValidationError(
+                "command robot_id must match the simulated robot."
+            )
+
+        if command.command_type is CommandType.STOP:
+            return self._confirm_success(
+                command=command,
+                pose_after=self._current_pose,
+            )
+
+        if command.command_type is CommandType.TURN_LEFT:
+            return self._confirm_success(
+                command=command,
+                pose_after=RobotPose(
+                    position=self._current_pose.position,
+                    heading=_rotate_heading(
+                        self._current_pose.heading,
+                        quarter_turns=-1,
+                    ),
+                ),
+            )
+
+        if command.command_type is CommandType.TURN_RIGHT:
+            return self._confirm_success(
+                command=command,
+                pose_after=RobotPose(
+                    position=self._current_pose.position,
+                    heading=_rotate_heading(
+                        self._current_pose.heading,
+                        quarter_turns=1,
+                    ),
+                ),
+            )
+
+        if command.command_type is CommandType.MOVE_FORWARD:
+            return self._move_forward(command)
+
+        raise DomainValidationError(
+            "command type is not supported by GridWorld."
+        )
+
     def advance_time(self, seconds: float) -> None:
         """Advance simulated time by a finite non-negative duration."""
 
@@ -109,3 +216,65 @@ class GridWorld:
             )
 
         self._elapsed_time_seconds = elapsed_time
+
+    def _move_forward(
+        self,
+        command: MotionCommand,
+    ) -> CommandResult:
+        """Move one cell or return a normalized failed result."""
+
+        candidate = _forward_position(self._current_pose)
+
+        if not self._world.contains(candidate):
+            return self._reject_movement(
+                command=command,
+                failure_reason=FailureReason.OUT_OF_BOUNDS,
+            )
+
+        if not self._world.is_traversable(candidate):
+            return self._reject_movement(
+                command=command,
+                failure_reason=FailureReason.BLOCKED,
+            )
+
+        return self._confirm_success(
+            command=command,
+            pose_after=RobotPose(
+                position=candidate,
+                heading=self._current_pose.heading,
+            ),
+        )
+
+    def _confirm_success(
+        self,
+        *,
+        command: MotionCommand,
+        pose_after: RobotPose,
+    ) -> CommandResult:
+        """Build a successful result before confirming new state."""
+
+        result = CommandResult(
+            command=command,
+            status=CommandStatus.SUCCESS,
+            pose_before=self._current_pose,
+            pose_after=pose_after,
+        )
+
+        self._current_pose = result.pose_after
+        return result
+
+    def _reject_movement(
+        self,
+        *,
+        command: MotionCommand,
+        failure_reason: FailureReason,
+    ) -> CommandResult:
+        """Return a failed result without changing confirmed state."""
+
+        return CommandResult(
+            command=command,
+            status=CommandStatus.FAILED,
+            pose_before=self._current_pose,
+            pose_after=self._current_pose,
+            failure_reason=failure_reason,
+        )

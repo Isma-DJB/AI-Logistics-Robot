@@ -33,3 +33,29 @@ Verification:
 - 11 GridWorld state tests passed.
 - The complete suite passed with 175 tests.
 - Command execution remains intentionally deferred to Batch B.
+
+## 3. Batch B - Normal Command Execution
+
+GridWorld now implements the complete apply_command() operation required
+by SimulationPort.
+
+Implemented behavior:
+
+- STOP succeeds without changing the confirmed pose.
+- TURN_LEFT rotates counterclockwise by one quarter turn.
+- TURN_RIGHT rotates clockwise by one quarter turn.
+- MOVE_FORWARD advances exactly one cell in the current heading.
+- Every successful command produces an immutable CommandResult.
+- Sequential commands use the latest confirmed pose.
+- Commands do not advance simulated time implicitly.
+- A command must belong to the configured robot.
+- Movement is guarded by configured bounds and traversability rules.
+- State changes occur only after a valid result is constructed.
+
+Verification:
+
+- 7 normal-command tests passed.
+- The 11 state-lifecycle tests remained green.
+- The complete suite passed with 182 tests.
+- Ruff and mypy passed.
+- Detailed rejection cases remain assigned to Batch C.
