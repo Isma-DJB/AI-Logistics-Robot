@@ -6,26 +6,28 @@ The Version 1 mission is triggered by a light target. One robot travels to a saf
 
 ## Current status
 
-**Implementation Draft I-0.4 - GridWorld and movement rules**
+**Implementation Draft I-0.5 - Planning and Memory**
 
-This draft implements the first concrete V1 platform adapter: a
-deterministic and headless GridWorld behind the public SimulationPort
-contract.
+This draft adds deterministic path planning and in-memory mission
+recording behind the existing PlanningPort and MemoryPort contracts.
 
-GridWorld maintains one configured robot pose and simulated elapsed time.
-It executes STOP, TURN_LEFT, TURN_RIGHT, and MOVE_FORWARD commands.
-Movement outside the grid is rejected with OUT_OF_BOUNDS, while obstacles
-and the target cell are rejected with BLOCKED. Every failed movement
-preserves the confirmed pose.
+AStarPlanner uses cardinal A* search with a Manhattan heuristic. It selects
+the shortest reachable authorized goal, preserves deterministic tie
+ordering, supports shifted grid origins, and reports an unreachable valid
+request through NoPathError.
 
-The adapter is publicly exported, structurally compatible with
-SimulationPort, and verified against the validated V1 reference
-configuration. It runs without Pygame, hardware, or additional runtime
-dependencies.
+InMemoryMissionMemory records confirmed outbound and return poses, ordered
+mission events, and terminal mission results. It builds the exact reversed
+outbound record for return preparation and requires an explicit reset
+before recording another mission.
 
-Planning, Memory, Brain orchestration, Control, graphical rendering, and
-physical integration remain intentionally deferred. I-0.5 will introduce
-Planning and Memory behavior.
+Both components are publicly exported and verified together against the
+validated V1 reference configuration. The existing deterministic GridWorld
+adapter remains the headless execution platform.
+
+Perception-driven map updates, Brain orchestration, Control, graphical
+rendering, and physical integration remain intentionally deferred. I-0.6
+will introduce the Brain state machine and Control behavior.
 
 ## Architecture
 
