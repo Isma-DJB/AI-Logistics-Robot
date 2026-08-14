@@ -1,9 +1,10 @@
 # Implementation Draft I-0.5 - Planning and Memory
 
-Status: IN PROGRESS
+Status: COMPLETE
 Branch: implementation/i-0.5
 Base commit: 15d6bd8
 Started: August 14, 2026
+Completed: August 14, 2026
 
 ## 1. Objective
 
@@ -210,3 +211,136 @@ Verification:
 - 4 Planning and Memory reference-integration tests passed.
 - The complete suite passed with 233 tests.
 - Ruff, mypy, and the project-structure check passed.
+
+## 10. Final Implementation Review
+
+I-0.5 delivers the first concrete Planning and Memory implementations for
+the V1 core while preserving the public contracts approved in I-0.3.
+
+### 10.1 Planning Outcome
+
+AStarPlanner is stateless and deterministic. It validates every planning
+request before search, uses configured GridMap bounds and traversability,
+and returns an immutable versioned PathPlan.
+
+The planner includes the supplied start position, selects the shortest
+reachable authorized goal, and uses caller goal order plus GridMap
+neighbor order to resolve equal-cost alternatives deterministically.
+
+NoPathError distinguishes a valid but unreachable request from malformed
+planning input. Mapping that exception to FailureReason.NO_PATH remains a
+Brain responsibility for I-0.6.
+
+### 10.2 Memory Outcome
+
+InMemoryMissionMemory records one mission at a time and exposes immutable
+read-only snapshots of active mission, completed mission, confirmed poses,
+and ordered events.
+
+Outbound and return histories remain separate. Return preparation reverses
+the exact outbound RobotPose sequence without deduplication, heading
+replacement, path recalculation, or mutation.
+
+Event identities must match the active mission. Event identifiers remain
+unique and sequence numbers strictly increase. Mission completion accepts
+only identity-matched terminal outcomes and closes further mutation until
+reset.
+
+## 11. Preserved Architectural Boundaries
+
+- Planning reads GridMap but never mutates world state.
+- Planning calculates paths but never executes movement.
+- Memory stores confirmed facts but never decides mission behavior.
+- Memory does not publish Monitoring events.
+- DETOUR is a planning phase, not a PathRecord navigation phase.
+- Replanning decisions remain outside both concrete components.
+- Return detours remain a Brain, Planning, and Control collaboration.
+- No Pygame, hardware, database, or network dependency was introduced.
+- Both implementations remain replaceable behind their public ports.
+
+## 12. Requirements Contribution
+
+I-0.5 contributes the following V1 behavior:
+
+- FR-06 to FR-11: deterministic route calculation and confirmed-pose
+  recording foundations.
+- FR-16 to FR-20: reverse confirmed-path preparation for return navigation.
+- FR-21 to FR-22: ordered in-memory event retention for reconstruction.
+- FR-26: explicit reset permits a new mission without restarting Python.
+- NFR-08: the simplest deterministic A* implementation is used.
+- NFR-09: mission_id and robot_id remain isolated throughout both modules.
+- NFR-10: identical inputs produce identical plans and memory records.
+
+Navigation orchestration, obstacle-triggered replanning, physical return,
+base-arrival confirmation, and waiting-state transitions remain assigned
+to later implementation drafts.
+
+## 13. Delivered Files
+
+Production additions and changes:
+
+- src/ai_logistics_robot/domain/errors.py
+- src/ai_logistics_robot/planning/a_star_planner.py
+- src/ai_logistics_robot/planning/__init__.py
+- src/ai_logistics_robot/memory/in_memory_mission_memory.py
+- src/ai_logistics_robot/memory/__init__.py
+- src/ai_logistics_robot/__main__.py
+- README.md
+
+Test additions:
+
+- tests/unit/test_a_star_planner.py
+- tests/unit/test_a_star_planner_rejections.py
+- tests/unit/test_in_memory_mission_memory.py
+- tests/unit/test_in_memory_mission_memory_rules.py
+- tests/integration/planning_memory/__init__.py
+- tests/integration/planning_memory/test_reference_planning_memory.py
+
+Implementation record:
+
+- docs/implementation/draft_I-0.5.md
+
+## 14. Verification Status
+
+Completed before the final quality gate:
+
+- 14 Planning unit tests passed.
+- 22 Memory unit tests passed.
+- 4 Planning and Memory integration tests passed.
+- The complete suite passed with 233 tests.
+- Ruff passed for every changed source and test file.
+- mypy passed across 41 source files.
+- The I-0.1 project-structure check passed.
+
+Final repository-wide quality gate:
+
+- 233 automated tests passed.
+- Ruff passed across the complete repository.
+- mypy passed across 41 source files.
+- The I-0.1 project-structure check passed.
+- pip reported no broken requirements.
+- The source distribution and wheel built successfully.
+- The built wheel contains the new Planning and Memory modules.
+- The command-line status entry point reports I-0.5 correctly.
+- git diff --check reported no whitespace errors.
+
+## 15. Deferred Work
+
+The following behavior remains outside I-0.5:
+
+- Perception-driven world updates.
+- Brain state-machine orchestration.
+- Control step construction and command execution.
+- Automatic outbound and return replanning decisions.
+- Mapping NoPathError to a terminal mission outcome.
+- Collection timing and base-arrival confirmation.
+- Graphical rendering and interactive simulation.
+- Persistent Memory and Monitoring adapters.
+- Physical hardware integration.
+
+## 16. Exit Decision
+
+Status: COMPLETE
+
+All five implementation batches and the complete repository quality gate
+are complete. I-0.5 is ready for pull-request review and merge into main.
