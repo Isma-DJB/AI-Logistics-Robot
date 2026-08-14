@@ -185,3 +185,28 @@ Verification:
 - The complete suite passed with 229 tests.
 - Ruff and mypy passed.
 - No memory implementation change was required.
+
+## 9. Batch E - Public Reference Integration
+
+Planning and Memory are now publicly exported and verified together
+against the validated V1 reference configuration.
+
+Verified behavior:
+
+- AStarPlanner is importable from ai_logistics_robot.planning.
+- InMemoryMissionMemory is importable from ai_logistics_robot.memory.
+- Both concrete implementations structurally satisfy their public ports.
+- The reference configuration initializes Planning and Memory inputs.
+- The outbound plan begins at the configured initial robot position.
+- The deterministic reference goal is the safe arrival cell at (8,6).
+- Every reference-plan position is traversable.
+- Confirmed outbound positions produce the exact reversed return record.
+- Mission and robot identities remain consistent across both components.
+- Reset permits an identical deterministic plan and memory replay.
+- No Brain, Control, graphical, hardware, or persistence dependency is used.
+
+Verification:
+
+- 4 Planning and Memory reference-integration tests passed.
+- The complete suite passed with 233 tests.
+- Ruff, mypy, and the project-structure check passed.
