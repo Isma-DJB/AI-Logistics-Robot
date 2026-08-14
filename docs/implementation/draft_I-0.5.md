@@ -129,3 +129,30 @@ Verification:
 - The complete suite passed with 207 tests.
 - Ruff and mypy passed.
 - No planning implementation change was required.
+
+## 7. Batch C - Memory Path Lifecycle
+
+InMemoryMissionMemory now records one mission and its confirmed navigation
+history using immutable public snapshots.
+
+Implemented behavior:
+
+- The concrete memory structurally satisfies MemoryPort.
+- Recording starts with one created or active Mission.
+- Outbound and return poses are stored in separate immutable histories.
+- Only poses explicitly supplied by the caller are recorded.
+- Repeated positions and heading changes are preserved exactly.
+- build_return_path reverses only the confirmed outbound pose history.
+- Return-phase poses do not alter the prepared reverse path.
+- Empty outbound history produces a valid empty PathRecord.
+- Repeated return-path construction is deterministic and non-mutating.
+- Active mission, completed mission, poses, and events are read-only.
+- Mission events and terminal completion are implemented for Batch D
+  validation.
+
+Verification:
+
+- 9 nominal memory path-lifecycle tests passed.
+- The complete suite passed with 216 tests.
+- Ruff, mypy, and the project-structure check passed.
+- No persistent storage or external dependency was introduced.
