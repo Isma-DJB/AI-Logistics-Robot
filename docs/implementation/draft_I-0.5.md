@@ -156,3 +156,32 @@ Verification:
 - The complete suite passed with 216 tests.
 - Ruff, mypy, and the project-structure check passed.
 - No persistent storage or external dependency was introduced.
+
+## 8. Batch D - Memory Events and Completion
+
+Mission-event ordering, terminal completion, lifecycle rejection, and reset
+behavior are now covered by dedicated tests.
+
+Verified behavior:
+
+- Recording accepts only created or active missions.
+- Every recording operation requires a previously started mission.
+- A second mission cannot start before an explicit reset.
+- Pose validation rejects invalid types and the DETOUR recording phase.
+- Invalid pose operations preserve both navigation histories.
+- Events must match the active mission and robot identities.
+- Event identifiers must remain unique.
+- Event sequence numbers must increase, while gaps remain valid.
+- SUCCESS, FAILED, and ABORTED outcomes can close a recording.
+- Completion requires matching mission identity and fixed geometry.
+- Successful completion preserves poses, events, and return-path access.
+- Completed recordings reject every further mutation.
+- Reset is idempotent and clears missions, poses, events, and results.
+- A new mission can start after reset.
+
+Verification:
+
+- 13 event, completion, and lifecycle-rule tests passed.
+- The complete suite passed with 229 tests.
+- Ruff and mypy passed.
+- No memory implementation change was required.
