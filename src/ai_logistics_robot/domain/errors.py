@@ -19,3 +19,6 @@ class InvalidStateTransitionError(DomainError):
 
 class InvariantViolationError(DomainError):
     """Raised when an established domain invariant is violated."""
+
+class NoPathError(DomainError):
+    """Raised when planning cannot reach any authorized goal."""
