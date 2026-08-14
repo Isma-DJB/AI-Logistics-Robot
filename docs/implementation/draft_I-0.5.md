@@ -102,3 +102,30 @@ Verification:
 - The complete suite passed with 198 tests.
 - No graphical, hardware, or external planning dependency was introduced.
 - Detailed validation and no-path cases remain assigned to Batch B.
+
+## 6. Batch B - Planning Validation and Failure Rules
+
+Planning validation and unreachable-path behavior are now covered by
+dedicated tests.
+
+Verified behavior:
+
+- Mission and robot identifiers must be non-empty strings.
+- The start pose, world, phase, and version are validated before search.
+- Plan versions must be positive integers and explicitly reject booleans.
+- Authorized goals must form a non-empty immutable tuple.
+- Authorized goals must be unique Position values.
+- The start pose and every authorized goal must be traversable.
+- Obstacles, the target cell, and out-of-bounds goals are rejected.
+- A start pose already located at the goal produces a one-position plan.
+- Shifted GridMap origins are handled without hard-coded coordinates.
+- An unreachable goal is skipped when another authorized goal is reachable.
+- NoPathError is raised when every authorized goal is unreachable.
+- A valid request succeeds immediately after a no-path result.
+
+Verification:
+
+- 9 validation and failure tests passed.
+- The complete suite passed with 207 tests.
+- Ruff and mypy passed.
+- No planning implementation change was required.
