@@ -198,3 +198,45 @@ Verification:
 - Ruff and mypy passed.
 - The project-structure check passed.
 - No production change was required after Batch A.
+
+## 9. Batch C - Brain Initialization and Mission Activation
+
+`DeterministicBrain` now provides the initial orchestration lifecycle,
+read-only status, target-edge detection, mission creation, and reset
+foundation through the existing public ports.
+
+Implemented behavior:
+
+- The concrete Brain structurally satisfies `BrainPort`.
+- Constructor configuration and all injected ports are validated.
+- The Brain depends only on domain objects and public ports.
+- Initial state is `INITIALIZATION`.
+- The first update confirms stationary behavior with `Control.stop()`.
+- Initialization performs no perception in the same cycle.
+- The following state is `WAITING_FOR_MISSION`.
+- Waiting keeps the robot stationary before every observation.
+- `Brain.get_status()` returns an immutable `SystemStatus`.
+- Status inspection performs no movement, stop, or perception operation.
+- The first target observation establishes the activation baseline.
+- Starting with an already active target does not create a mission.
+- A mission is created only on a later `INACTIVE` to `ACTIVE` edge.
+- Accepted missions use deterministic scenario-derived identifiers.
+- Mission identifiers remain unique across resets in one Python process.
+- Mission, robot, target, base, and target-position identities are preserved.
+- A newly accepted mission begins with `MissionStatus.ACTIVE`.
+- The initial confirmed pose is recorded as outbound history.
+- The first event is stored by Memory and published as the same object.
+- Event identifiers and sequence numbers restart for each new mission.
+- An active mission cannot accept a second target activation.
+- Reset clears temporary Brain and Memory state.
+- Reset preserves the monotonic mission counter and Monitoring history.
+- Reset never invokes `Control.reset_safety_latch()`.
+
+Verification:
+
+- 7 initialization and activation tests passed.
+- The complete suite passed with 258 tests.
+- Ruff and mypy passed across 43 source files.
+- The project-structure check passed.
+- No concrete simulation, rendering, hardware, or persistence dependency
+  was introduced.
