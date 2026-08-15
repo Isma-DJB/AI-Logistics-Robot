@@ -335,3 +335,52 @@ Verification:
 - Ruff and mypy passed across 43 source files.
 - The project-structure check passed.
 - Nominal return does not call PlanningPort or import GridWorld.
+
+## 12. Batch E2 - Terminal States and Exceptional Behavior
+
+`DeterministicBrain` now handles successful terminal completion,
+mission-level failures, technical system errors, return obstacles,
+timeouts, and latched emergency abortion.
+
+Implemented behavior:
+
+- `MISSION_COMPLETED` creates a valid immutable successful mission.
+- Successful missions require collection and confirmed base arrival.
+- The final `mission_completed` event is recorded before Memory closes.
+- `Memory.complete()` stores the exact successful mission object.
+- Successful completion returns the Brain to stationary waiting.
+- A later accepted mission resets closed Memory recording state while
+  preserving deterministic mission identity counters.
+- `NoPathError` maps to `FailureReason.NO_PATH`.
+- No-path outcomes produce `MISSION_FAILED`.
+- Replanning attempts are counted across the active mission.
+- Replanning-limit exhaustion produces `MISSION_FAILED` with `BLOCKED`.
+- Mission timeout is measured from deterministic monotonic acceptance time.
+- Timeout has no scattered or invented movement duration.
+- Timeout stops movement and completes the mission with `TIMEOUT`.
+- Unexpected out-of-bounds execution produces `SYSTEM_ERROR`.
+- Communication loss and internal execution failures share the technical
+  system-error classification.
+- Failed and system-error missions are stored with explicit terminal reasons.
+- A blocked return movement preserves the confirmed pose.
+- Failed return movement is never recorded as successful.
+- The blocked return cell is added to a revised immutable map.
+- `RETURN_REPLANNING` creates a versioned detour to the exact base.
+- Return detours use `PathPhase.DETOUR`.
+- `SAFETY_STOP` remains higher priority than timeout and normal transitions.
+- An externally latched emergency aborts the active mission.
+- Emergency abortion stores `MissionStatus.ABORTED`.
+- The safety reason is preserved in Mission, SystemStatus, and events.
+- Manual Control rearm never resumes the aborted mission automatically.
+- Brain reset and manual safety rearm remain separate operations.
+- Mission-scoped terminal events are recorded before Memory closes.
+
+Verification:
+
+- 7 terminal and exceptional-behavior tests passed.
+- 23 combined Brain lifecycle tests passed.
+- The complete suite passed with 274 tests.
+- Ruff and mypy passed across 43 source files.
+- The project-structure check passed.
+- Failure handling remains independent of GridWorld, rendering, hardware,
+  networking, and persistent storage.

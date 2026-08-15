@@ -19,6 +19,7 @@ from ai_logistics_robot.domain.enums import (
 from ai_logistics_robot.domain.errors import (
     DomainValidationError,
     InvariantViolationError,
+    NoPathError,
 )
 from ai_logistics_robot.domain.events import MissionEvent
 from ai_logistics_robot.domain.geometry import Position, RobotPose
@@ -121,6 +122,7 @@ class DeterministicBrain:
         "_memory",
         "_mission",
         "_mission_counter",
+        "_mission_started_at",
         "_monitoring",
         "_navigation_index",
         "_perception",
@@ -256,7 +258,15 @@ class DeterministicBrain:
         safety_status = self._control.get_safety_status()
 
         if safety_status.latched:
-            self._state = BrainState.SAFETY_STOP
+            self._handle_latched_safety(
+                safety_status.reason
+            )
+            return
+
+        if self._mission_has_timed_out():
+            self._complete_failed_mission(
+                FailureReason.TIMEOUT
+            )
             return
 
         if self._state is BrainState.INITIALIZATION:
@@ -289,6 +299,14 @@ class DeterministicBrain:
 
         if self._state is BrainState.RETURN_NAVIGATION:
             self._navigate_return()
+            return
+
+        if self._state is BrainState.RETURN_REPLANNING:
+            self._replan_return()
+            return
+
+        if self._state is BrainState.MISSION_COMPLETED:
+            self._complete_successful_mission()
             return
 
     def get_status(self) -> SystemStatus:
@@ -334,6 +352,7 @@ class DeterministicBrain:
         self._latest_error: FailureReason | None = None
         self._target_was_active: bool | None = None
         self._event_sequence = 0
+        self._mission_started_at: float | None = None
         self._navigation_index = 0
         self._plan_version = 1
         self._replan_count = 0
@@ -352,10 +371,9 @@ class DeterministicBrain:
         self._accept_snapshot(snapshot)
 
         if snapshot.hazard_detected:
-            self._control.emergency_stop(
+            self._request_safety_stop(
                 FailureReason.EMERGENCY_STOP
             )
-            self._state = BrainState.SAFETY_STOP
             return
 
         previous_target_state = self._target_was_active
@@ -389,6 +407,27 @@ class DeterministicBrain:
     def _start_mission(self) -> None:
         """Create and record one deterministic active mission."""
 
+        if self._mission is not None:
+            if self._mission.status not in (
+                MissionStatus.SUCCESS,
+                MissionStatus.FAILED,
+                MissionStatus.ABORTED,
+            ):
+                raise InvariantViolationError(
+                    "a new mission cannot replace "
+                    "an active mission."
+                )
+
+            self._memory.reset()
+
+        mission_started_at = self._clock.monotonic()
+
+        if not isfinite(mission_started_at):
+            raise InvariantViolationError(
+                "mission monotonic start time must be finite."
+            )
+
+        self._world = self._configured_world
         self._mission_counter += 1
         mission_id = (
             f"{self._scenario_id}-mission-"
@@ -413,6 +452,7 @@ class DeterministicBrain:
         self._active_plan = None
         self._latest_error = None
         self._event_sequence = 0
+        self._mission_started_at = mission_started_at
         self._navigation_index = 0
         self._plan_version = 1
         self._replan_count = 0
@@ -431,6 +471,17 @@ class DeterministicBrain:
         """Create a detour using the revised immutable map."""
 
         self._replan_count += 1
+
+        if (
+            self._maximum_replans is not None
+            and self._replan_count
+            > self._maximum_replans
+        ):
+            self._complete_failed_mission(
+                FailureReason.BLOCKED
+            )
+            return
+
         self._plan_version += 1
 
         self._create_navigation_plan(
@@ -450,15 +501,21 @@ class DeterministicBrain:
         authorized_goals = (
             self._world.authorized_arrival_positions
         )
-        plan = self._planning.create_plan(
-            mission_id=mission.mission_id,
-            robot_id=self._robot_id,
-            start_pose=self._current_pose,
-            authorized_goals=authorized_goals,
-            world=self._world,
-            phase=phase,
-            version=self._plan_version,
-        )
+        try:
+            plan = self._planning.create_plan(
+                mission_id=mission.mission_id,
+                robot_id=self._robot_id,
+                start_pose=self._current_pose,
+                authorized_goals=authorized_goals,
+                world=self._world,
+                phase=phase,
+                version=self._plan_version,
+            )
+        except NoPathError:
+            self._complete_failed_mission(
+                FailureReason.NO_PATH
+            )
+            return
 
         self._validate_navigation_plan(
             plan,
@@ -526,10 +583,9 @@ class DeterministicBrain:
         self._accept_snapshot(snapshot)
 
         if snapshot.hazard_detected:
-            self._control.emergency_stop(
+            self._request_safety_stop(
                 FailureReason.EMERGENCY_STOP
             )
-            self._state = BrainState.SAFETY_STOP
             return
 
         plan = self._require_active_plan()
@@ -654,12 +710,35 @@ class DeterministicBrain:
             return
 
         if (
+            result.status is CommandStatus.TIMEOUT
+            or result.failure_reason is FailureReason.TIMEOUT
+        ):
+            self._complete_failed_mission(
+                FailureReason.TIMEOUT
+            )
+            return
+
+        if result.failure_reason in (
+            FailureReason.OUT_OF_BOUNDS,
+            FailureReason.COMMUNICATION_LOSS,
+            FailureReason.INTERNAL_ERROR,
+        ):
+            assert result.failure_reason is not None
+            self._complete_failed_mission(
+                result.failure_reason,
+                state=BrainState.SYSTEM_ERROR,
+                event_name="system_error",
+            )
+            return
+
+        if (
             result.status is CommandStatus.ABORTED
             and result.failure_reason
             is FailureReason.SAFETY_LATCHED
         ):
-            self._latest_error = FailureReason.SAFETY_LATCHED
-            self._state = BrainState.SAFETY_STOP
+            self._handle_latched_safety(
+                FailureReason.SAFETY_LATCHED
+            )
             return
 
         raise InvariantViolationError(
@@ -850,17 +929,20 @@ class DeterministicBrain:
         self._accept_snapshot(snapshot)
 
         if snapshot.hazard_detected:
-            self._control.emergency_stop(
+            self._request_safety_stop(
                 FailureReason.EMERGENCY_STOP
             )
-            self._state = BrainState.SAFETY_STOP
             return
 
         plan = self._require_active_plan()
 
-        if plan.phase is not PathPhase.RETURN:
+        if plan.phase not in (
+            PathPhase.RETURN,
+            PathPhase.DETOUR,
+        ):
             raise InvariantViolationError(
-                "return navigation requires a RETURN plan."
+                "return navigation requires a RETURN "
+                "or DETOUR plan."
             )
 
         if self._current_pose.position == plan.goal:
@@ -916,10 +998,53 @@ class DeterministicBrain:
                 "control result must begin at the current pose."
             )
 
+        if (
+            result.status is CommandStatus.FAILED
+            and result.failure_reason is FailureReason.BLOCKED
+        ):
+            self._accept_blocked_return_result(
+                result,
+                command=command,
+                intended_position=intended_position,
+            )
+            return
+
+        if (
+            result.status is CommandStatus.TIMEOUT
+            or result.failure_reason is FailureReason.TIMEOUT
+        ):
+            self._complete_failed_mission(
+                FailureReason.TIMEOUT
+            )
+            return
+
+        if result.failure_reason in (
+            FailureReason.OUT_OF_BOUNDS,
+            FailureReason.COMMUNICATION_LOSS,
+            FailureReason.INTERNAL_ERROR,
+        ):
+            assert result.failure_reason is not None
+            self._complete_failed_mission(
+                result.failure_reason,
+                state=BrainState.SYSTEM_ERROR,
+                event_name="system_error",
+            )
+            return
+
+        if (
+            result.status is CommandStatus.ABORTED
+            and result.failure_reason
+            is FailureReason.SAFETY_LATCHED
+        ):
+            self._handle_latched_safety(
+                FailureReason.SAFETY_LATCHED
+            )
+            return
+
         if result.status is not CommandStatus.SUCCESS:
             raise InvariantViolationError(
-                "nominal return navigation requires "
-                "a successful command result."
+                "return navigation received an unsupported "
+                "command outcome."
             )
 
         if command.command_type is CommandType.MOVE_FORWARD:
@@ -973,6 +1098,255 @@ class DeterministicBrain:
         self._record_mission_event(
             "base_arrival_confirmed"
         )
+    def _accept_blocked_return_result(
+        self,
+        result: CommandResult,
+        *,
+        command: MotionCommand,
+        intended_position: Position,
+    ) -> None:
+        """Preserve pose and enter return replanning."""
+
+        if command.command_type is not CommandType.MOVE_FORWARD:
+            raise InvariantViolationError(
+                "only a forward return movement "
+                "may report BLOCKED."
+            )
+
+        if (
+            result.pose_after != self._current_pose
+            or result.pose_before != result.pose_after
+        ):
+            raise InvariantViolationError(
+                "a blocked return movement must preserve "
+                "the confirmed pose."
+            )
+
+        revised_obstacles = (
+            self._world.obstacles
+            | frozenset({intended_position})
+        )
+        self._world = replace(
+            self._world,
+            obstacles=revised_obstacles,
+        )
+        self._active_plan = None
+        self._navigation_index = 0
+        self._latest_error = FailureReason.BLOCKED
+        self._state = BrainState.RETURN_REPLANNING
+        self._record_mission_event(
+            "return_step_blocked"
+        )
+
+    def _replan_return(self) -> None:
+        """Create a safe detour from the current pose to base."""
+
+        mission = self._require_active_mission()
+        self._replan_count += 1
+
+        if (
+            self._maximum_replans is not None
+            and self._replan_count
+            > self._maximum_replans
+        ):
+            self._complete_failed_mission(
+                FailureReason.BLOCKED
+            )
+            return
+
+        self._plan_version += 1
+
+        try:
+            plan = self._planning.create_plan(
+                mission_id=mission.mission_id,
+                robot_id=self._robot_id,
+                start_pose=self._current_pose,
+                authorized_goals=(mission.base_position,),
+                world=self._world,
+                phase=PathPhase.DETOUR,
+                version=self._plan_version,
+            )
+        except NoPathError:
+            self._complete_failed_mission(
+                FailureReason.NO_PATH
+            )
+            return
+
+        if not isinstance(plan, PathPlan):
+            raise DomainValidationError(
+                "planning must return a PathPlan."
+            )
+
+        if plan.mission_id != mission.mission_id:
+            raise InvariantViolationError(
+                "return detour mission_id must match "
+                "the active mission."
+            )
+
+        if plan.robot_id != self._robot_id:
+            raise InvariantViolationError(
+                "return detour robot_id must match "
+                "the configured robot."
+            )
+
+        if plan.phase is not PathPhase.DETOUR:
+            raise InvariantViolationError(
+                "return replan must produce a DETOUR."
+            )
+
+        if plan.version != self._plan_version:
+            raise InvariantViolationError(
+                "return detour version must match "
+                "the requested version."
+            )
+
+        if plan.positions[0] != self._current_pose.position:
+            raise InvariantViolationError(
+                "return detour must begin at "
+                "the current confirmed position."
+            )
+
+        if plan.goal != mission.base_position:
+            raise InvariantViolationError(
+                "return detour must end at the mission base."
+            )
+
+        self._active_plan = plan
+        self._navigation_index = 1
+        self._state = BrainState.RETURN_NAVIGATION
+        self._record_mission_event(
+            "return_plan_recreated"
+        )
+
+    def _mission_has_timed_out(self) -> bool:
+        """Return whether the active mission reached its timeout."""
+
+        if (
+            self._timeout_s is None
+            or self._mission is None
+            or self._mission.status is not MissionStatus.ACTIVE
+            or self._mission_started_at is None
+        ):
+            return False
+
+        current_time = self._clock.monotonic()
+
+        if not isfinite(current_time):
+            raise InvariantViolationError(
+                "mission monotonic time must be finite."
+            )
+
+        elapsed = current_time - self._mission_started_at
+
+        if elapsed < 0:
+            raise InvariantViolationError(
+                "mission monotonic time cannot move backward."
+            )
+
+        return elapsed >= self._timeout_s
+
+    def _complete_successful_mission(self) -> None:
+        """Store success and return to stationary waiting."""
+
+        mission = self._require_active_mission()
+
+        if (
+            not mission.collection_completed
+            or not mission.base_arrival_confirmed
+        ):
+            raise InvariantViolationError(
+                "successful completion requires collection "
+                "and confirmed base arrival."
+            )
+
+        self._control.stop()
+        completed_mission = replace(
+            mission,
+            status=MissionStatus.SUCCESS,
+        )
+        self._mission = completed_mission
+        self._active_plan = None
+        self._latest_error = None
+        self._mission_started_at = None
+        self._state = BrainState.WAITING_FOR_MISSION
+        self._record_mission_event(
+            "mission_completed"
+        )
+        self._memory.complete(completed_mission)
+
+    def _complete_failed_mission(
+        self,
+        reason: FailureReason,
+        *,
+        state: BrainState = BrainState.MISSION_FAILED,
+        event_name: str = "mission_failed",
+    ) -> None:
+        """Stop and store one terminal failed mission."""
+
+        mission = self._require_active_mission()
+        self._control.stop()
+        failed_mission = replace(
+            mission,
+            status=MissionStatus.FAILED,
+            terminal_reason=reason,
+        )
+        self._mission = failed_mission
+        self._active_plan = None
+        self._latest_error = reason
+        self._mission_started_at = None
+        self._navigation_index = 0
+        self._state = state
+        self._record_mission_event(event_name)
+        self._memory.complete(failed_mission)
+
+    def _request_safety_stop(
+        self,
+        reason: FailureReason,
+    ) -> None:
+        """Execute the priority stop before aborting the mission."""
+
+        self._control.emergency_stop(reason)
+        self._handle_latched_safety(reason)
+
+    def _handle_latched_safety(
+        self,
+        reason: FailureReason | None,
+    ) -> None:
+        """Enter latched safety without automatic recovery."""
+
+        normalized_reason = (
+            FailureReason.SAFETY_LATCHED
+            if reason is None
+            else reason
+        )
+
+        if self._state is BrainState.SAFETY_STOP:
+            return
+
+        if (
+            self._mission is not None
+            and self._mission.status is MissionStatus.ACTIVE
+        ):
+            aborted_mission = replace(
+                self._mission,
+                status=MissionStatus.ABORTED,
+                terminal_reason=normalized_reason,
+            )
+            self._mission = aborted_mission
+            self._active_plan = None
+            self._latest_error = normalized_reason
+            self._mission_started_at = None
+            self._navigation_index = 0
+            self._state = BrainState.SAFETY_STOP
+            self._record_mission_event("safety_stop")
+            self._memory.complete(aborted_mission)
+            return
+
+        self._active_plan = None
+        self._latest_error = normalized_reason
+        self._mission_started_at = None
+        self._navigation_index = 0
+        self._state = BrainState.SAFETY_STOP
     def _require_active_mission(self) -> Mission:
         """Return the active mission or reject invalid state."""
 
