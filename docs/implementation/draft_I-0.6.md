@@ -1,9 +1,10 @@
 # Implementation Draft I-0.6 - Brain, State Machine, and Control
 
-Status: IN PROGRESS
+Status: COMPLETED
 Branch: implementation/i-0.6
 Base commit: c8de100
 Started: August 15, 2026
+Completed: August 16, 2026
 
 ## 1. Objective
 
@@ -384,3 +385,67 @@ Verification:
 - The project-structure check passed.
 - Failure handling remains independent of GridWorld, rendering, hardware,
   networking, and persistent storage.
+
+## 13. Batch F - Public Integration and Closure
+
+The concrete Brain and Control implementations are now publicly exported
+and verified through the complete reference configuration.
+
+Implemented and verified behavior:
+
+- `ai_logistics_robot.brain` exports `DeterministicBrain`.
+- `ai_logistics_robot.control` exports `SafeRobotControl`.
+- Both packages define explicit `__all__` contracts.
+- Integration loads the real `configs/simulation.yaml`.
+- The reference system uses real `GridWorld`, `SafeRobotControl`,
+  `AStarPlanner`, and `InMemoryMissionMemory` implementations.
+- The configured activation edge creates exactly one mission.
+- The robot reaches an authorized safe cell without traversing the target.
+- Collection waits for the configured three simulated seconds.
+- Return uses the exact reversed confirmed outbound history.
+- The robot returns to the exact configured base.
+- The final mission has `MissionStatus.SUCCESS`.
+- Final safety remains unlatched with no latest error.
+- Memory and Monitoring retain identical ordered event objects.
+- Two independent assemblies produce identical mission traces.
+
+Final verification:
+
+- 3 reference integration tests passed.
+- The complete repository suite passed with 277 tests.
+- Ruff passed across the complete repository.
+- Mypy passed across 43 source files.
+- Project-structure and platform-independence checks passed.
+- Dependency validation passed.
+- Source and wheel package builds passed.
+- The application entry point remained executable.
+- Git whitespace checks passed.
+
+## 14. I-0.6 Outcome
+
+Implementation Draft I-0.6 is complete.
+
+The milestone now provides:
+
+- Deterministic initialization and target-edge activation.
+- Confirmed outbound planning and navigation.
+- Dynamic obstacle rejection and bounded replanning.
+- Safe adjacent arrival and stationary timed collection.
+- Exact reverse-path return and return detours.
+- Successful, failed, aborted, and technical terminal outcomes.
+- Priority latched safety stop without automatic mission recovery.
+- Ordered mission events and confirmed pose histories.
+- Read-only system status without control effects.
+- Deterministic replay of the complete reference scenario.
+- Platform-independent Brain and Control implementations.
+
+Still deferred beyond I-0.6:
+
+- The complete application `MissionRunner`.
+- Concrete perception, monitoring, and clock adapters.
+- Pygame rendering and interactive controls.
+- Physical movement timing and calibrated safety margins.
+- Persistent storage and external monitoring destinations.
+- Camera, motor, Arduino, and ESP32 integration.
+- Network, multi-robot, and multi-target coordination.
+- A separate pre-mission system-event contract.
