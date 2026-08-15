@@ -412,13 +412,13 @@ Implemented and verified behavior:
 Final verification:
 
 - 3 reference integration tests passed.
-- The complete repository suite passed with 277 tests.
+- The complete repository suite passed with 278 tests.
 - Ruff passed across the complete repository.
 - Mypy passed across 43 source files.
 - Project-structure and platform-independence checks passed.
 - Dependency validation passed.
 - Source and wheel package builds passed.
-- The application entry point remained executable.
+- The application entry point reports the completed I-0.6 status.
 - Git whitespace checks passed.
 
 ## 14. I-0.6 Outcome

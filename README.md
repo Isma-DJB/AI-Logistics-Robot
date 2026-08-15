@@ -6,29 +6,29 @@ The Version 1 mission is triggered by a light target. One robot travels to a saf
 
 ## Current status
 
-**Implementation Draft I-0.5 - Planning and Memory**
+**Implementation Draft I-0.6 - Brain and Control**
 
-This draft adds deterministic path planning and in-memory mission
-recording behind the existing PlanningPort and MemoryPort contracts.
+This draft adds deterministic mission orchestration and safety-aware command
+execution behind the existing public ports.
 
-AStarPlanner uses cardinal A* search with a Manhattan heuristic. It selects
-the shortest reachable authorized goal, preserves deterministic tie
-ordering, supports shifted grid origins, and reports an unreachable valid
-request through NoPathError.
+`DeterministicBrain` owns the complete reference mission lifecycle:
+target-edge activation, outbound planning and navigation, obstacle-driven
+replanning, stationary collection, exact reverse-path return, return
+detours, and explicit terminal outcomes.
 
-InMemoryMissionMemory records confirmed outbound and return poses, ordered
-mission events, and terminal mission results. It builds the exact reversed
-outbound record for return preparation and requires an explicit reset
-before recording another mission.
+`SafeRobotControl` validates and executes one command at a time, preserves
+confirmed robot poses, and owns the priority safety latch and manual rearm
+behavior.
 
-Both components are publicly exported and verified together against the
-validated V1 reference configuration. The existing deterministic GridWorld
-adapter remains the headless execution platform.
+The complete reference configuration is verified with the real `GridWorld`,
+`AStarPlanner`, `InMemoryMissionMemory`, `SafeRobotControl`, and
+`DeterministicBrain` implementations. Independent executions produce the
+same confirmed paths, commands, events, collection deadline, and successful
+mission result.
 
-Perception-driven map updates, Brain orchestration, Control, graphical
-rendering, and physical integration remain intentionally deferred. I-0.6
-will introduce the Brain state machine and Control behavior.
-
+The complete application runner, concrete perception, monitoring and clock
+adapters, graphical rendering, and physical integration remain intentionally
+deferred beyond I-0.6.
 ## Architecture
 
 The V1 core is divided into the following modules:
