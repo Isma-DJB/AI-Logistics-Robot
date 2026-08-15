@@ -240,3 +240,56 @@ Verification:
 - The project-structure check passed.
 - No concrete simulation, rendering, hardware, or persistence dependency
   was introduced.
+
+## 10. Batch D - Outbound Navigation and Collection
+
+`DeterministicBrain` now performs outbound planning, confirmed
+one-command navigation cycles, obstacle-driven replanning, safe arrival,
+and timed stationary collection.
+
+Implemented behavior:
+
+- `OUTBOUND_PLANNING` creates one plan in its own update cycle.
+- Initial outbound plans use `PathPhase.OUTBOUND` and version 1.
+- The plan begins at the latest confirmed robot position.
+- Planning selects only an authorized safe cell adjacent to the target.
+- The first planned position is treated as the current pose and is not
+  executed as a new movement.
+- Every navigation update performs a new normalized observation.
+- At most one movement or turning command is executed per update.
+- Commands are derived deterministically from the next position and the
+  current confirmed heading.
+- Opposite headings are resolved through two deterministic right turns.
+- Every successful turn and movement records its confirmed pose.
+- Successful forward movement must reach the intended adjacent position.
+- Failed movement never changes or records the confirmed pose.
+- A `BLOCKED` result adds the intended cell to a revised immutable map.
+- Blocked outbound movement enters `OUTBOUND_REPLANNING`.
+- Replanning creates a versioned `PathPhase.DETOUR` plan.
+- Replanned paths exclude the newly confirmed blocked cell.
+- Safe arrival is confirmed only at the selected authorized plan goal.
+- Arrival enters `COLLECTION` without waiting in the same update cycle.
+- Collection sends an explicit `STOP`.
+- Collection waits through `ClockPort` for the configured duration.
+- Collection completion creates a new immutable `Mission` value.
+- Collection then enters `RETURN_PREPARATION`.
+- Navigation, blocking, replanning, arrival, and collection actions
+  produce ordered mission events.
+- Brain reset restores the original configured map and clears temporary
+  navigation state.
+
+The existing activation test was refined because post-activation states
+are no longer intentional no-ops. It now verifies that the accepted
+mission remains unchanged while orchestration advances into outbound
+navigation.
+
+Replanning-limit exhaustion, `NoPathError`, mission timeout, and terminal
+failure classification remain assigned to Batch E.
+
+Verification:
+
+- 13 combined activation and outbound tests passed.
+- The complete suite passed with 264 tests.
+- Ruff and mypy passed across 43 source files.
+- The project-structure check passed.
+- No concrete GridWorld dependency was introduced into the Brain.

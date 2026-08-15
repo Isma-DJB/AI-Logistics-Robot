@@ -488,7 +488,7 @@ class DeterministicBrainActivationTests(unittest.TestCase):
             "v1-reference-mission-1",
         )
 
-    def test_active_mission_does_not_accept_second_activation(
+    def test_active_mission_is_preserved_as_orchestration_advances(
         self,
     ) -> None:
         brain, perception, _, _, memory, monitoring = (
@@ -507,12 +507,23 @@ class DeterministicBrainActivationTests(unittest.TestCase):
         accepted_mission = memory.active_mission
 
         brain.update()
-        brain.update()
 
         self.assertIs(memory.active_mission, accepted_mission)
+        self.assertIs(
+            brain.get_status().brain_state,
+            BrainState.OUTBOUND_NAVIGATION,
+        )
         self.assertEqual(perception.observe_calls, 2)
-        self.assertEqual(len(monitoring.events), 1)
-
+        self.assertEqual(
+            tuple(
+                event.name
+                for event in monitoring.events
+            ),
+            (
+                "mission_started",
+                "outbound_plan_created",
+            ),
+        )
     def test_reset_clears_state_without_rearming_control(
         self,
     ) -> None:

@@ -1,10 +1,18 @@
 """Deterministic platform-independent mission orchestration."""
 
+from dataclasses import replace
 from math import isfinite
 
+from ai_logistics_robot.domain.commands import (
+    CommandResult,
+    MotionCommand,
+)
 from ai_logistics_robot.domain.enums import (
     BrainState,
+    CommandStatus,
+    CommandType,
     FailureReason,
+    Heading,
     MissionStatus,
     PathPhase,
 )
@@ -13,7 +21,7 @@ from ai_logistics_robot.domain.errors import (
     InvariantViolationError,
 )
 from ai_logistics_robot.domain.events import MissionEvent
-from ai_logistics_robot.domain.geometry import RobotPose
+from ai_logistics_robot.domain.geometry import Position, RobotPose
 from ai_logistics_robot.domain.mission import Mission
 from ai_logistics_robot.domain.paths import PathPlan
 from ai_logistics_robot.domain.perception import PerceptionSnapshot
@@ -25,6 +33,13 @@ from ai_logistics_robot.ports.memory_port import MemoryPort
 from ai_logistics_robot.ports.monitoring_port import MonitoringPort
 from ai_logistics_robot.ports.perception_port import PerceptionPort
 from ai_logistics_robot.ports.planning_port import PlanningPort
+
+_CARDINAL_HEADINGS = (
+    Heading.NORTH,
+    Heading.EAST,
+    Heading.SOUTH,
+    Heading.WEST,
+)
 
 
 def _validate_identifier(name: str, value: object) -> None:
@@ -93,6 +108,7 @@ class DeterministicBrain:
         "_active_plan",
         "_clock",
         "_collection_duration_s",
+        "_configured_world",
         "_control",
         "_current_pose",
         "_event_sequence",
@@ -103,8 +119,11 @@ class DeterministicBrain:
         "_mission",
         "_mission_counter",
         "_monitoring",
+        "_navigation_index",
         "_perception",
+        "_plan_version",
         "_planning",
+        "_replan_count",
         "_robot_id",
         "_scenario_id",
         "_state",
@@ -210,6 +229,7 @@ class DeterministicBrain:
         self._scenario_id = scenario_id
         self._robot_id = robot_id
         self._target_id = target_id
+        self._configured_world = world
         self._world = world
         self._initial_pose = initial_pose
         self._collection_duration_s = (
@@ -242,6 +262,22 @@ class DeterministicBrain:
 
         if self._state is BrainState.WAITING_FOR_MISSION:
             self._wait_for_mission()
+            return
+
+        if self._state is BrainState.OUTBOUND_PLANNING:
+            self._create_outbound_plan()
+            return
+
+        if self._state is BrainState.OUTBOUND_NAVIGATION:
+            self._navigate_outbound()
+            return
+
+        if self._state is BrainState.OUTBOUND_REPLANNING:
+            self._replan_outbound()
+            return
+
+        if self._state is BrainState.COLLECTION:
+            self._perform_collection()
             return
 
     def get_status(self) -> SystemStatus:
@@ -280,12 +316,16 @@ class DeterministicBrain:
         """Restore replayable state while preserving mission identity."""
 
         self._state = BrainState.INITIALIZATION
+        self._world = self._configured_world
         self._current_pose = self._initial_pose
         self._mission: Mission | None = None
         self._active_plan: PathPlan | None = None
         self._latest_error: FailureReason | None = None
         self._target_was_active: bool | None = None
         self._event_sequence = 0
+        self._navigation_index = 0
+        self._plan_version = 1
+        self._replan_count = 0
 
     def _initialize(self) -> None:
         """Confirm stationary behavior before entering waiting."""
@@ -362,8 +402,392 @@ class DeterministicBrain:
         self._active_plan = None
         self._latest_error = None
         self._event_sequence = 0
+        self._navigation_index = 0
+        self._plan_version = 1
+        self._replan_count = 0
         self._state = BrainState.OUTBOUND_PLANNING
         self._record_mission_event("mission_started")
+
+    def _create_outbound_plan(self) -> None:
+        """Create the initial path to an authorized arrival cell."""
+
+        self._create_navigation_plan(
+            phase=PathPhase.OUTBOUND,
+            event_name="outbound_plan_created",
+        )
+
+    def _replan_outbound(self) -> None:
+        """Create a detour using the revised immutable map."""
+
+        self._replan_count += 1
+        self._plan_version += 1
+
+        self._create_navigation_plan(
+            phase=PathPhase.DETOUR,
+            event_name="outbound_plan_recreated",
+        )
+
+    def _create_navigation_plan(
+        self,
+        *,
+        phase: PathPhase,
+        event_name: str,
+    ) -> None:
+        """Create and accept one validated outbound plan."""
+
+        mission = self._require_active_mission()
+        authorized_goals = (
+            self._world.authorized_arrival_positions
+        )
+        plan = self._planning.create_plan(
+            mission_id=mission.mission_id,
+            robot_id=self._robot_id,
+            start_pose=self._current_pose,
+            authorized_goals=authorized_goals,
+            world=self._world,
+            phase=phase,
+            version=self._plan_version,
+        )
+
+        self._validate_navigation_plan(
+            plan,
+            phase=phase,
+            authorized_goals=authorized_goals,
+        )
+
+        self._active_plan = plan
+        self._navigation_index = 1
+        self._state = BrainState.OUTBOUND_NAVIGATION
+        self._record_mission_event(event_name)
+
+    def _validate_navigation_plan(
+        self,
+        plan: object,
+        *,
+        phase: PathPhase,
+        authorized_goals: tuple[Position, ...],
+    ) -> None:
+        """Require an identity-matched plan from the current pose."""
+
+        if not isinstance(plan, PathPlan):
+            raise DomainValidationError(
+                "planning must return a PathPlan."
+            )
+
+        mission = self._require_active_mission()
+
+        if plan.mission_id != mission.mission_id:
+            raise InvariantViolationError(
+                "plan mission_id must match the active mission."
+            )
+
+        if plan.robot_id != self._robot_id:
+            raise InvariantViolationError(
+                "plan robot_id must match the configured robot."
+            )
+
+        if plan.phase is not phase:
+            raise InvariantViolationError(
+                "plan phase must match the requested phase."
+            )
+
+        if plan.version != self._plan_version:
+            raise InvariantViolationError(
+                "plan version must match the requested version."
+            )
+
+        if plan.positions[0] != self._current_pose.position:
+            raise InvariantViolationError(
+                "the first planned position must equal "
+                "the current confirmed position."
+            )
+
+        if plan.goal not in authorized_goals:
+            raise InvariantViolationError(
+                "the plan goal must be an authorized "
+                "arrival position."
+            )
+
+    def _navigate_outbound(self) -> None:
+        """Observe and execute at most one outbound command."""
+
+        snapshot = self._perception.observe()
+        self._accept_snapshot(snapshot)
+
+        if snapshot.hazard_detected:
+            self._control.emergency_stop(
+                FailureReason.EMERGENCY_STOP
+            )
+            self._state = BrainState.SAFETY_STOP
+            return
+
+        plan = self._require_active_plan()
+
+        if self._current_pose.position == plan.goal:
+            self._enter_collection()
+            return
+
+        while (
+            self._navigation_index < len(plan.positions)
+            and plan.positions[self._navigation_index]
+            == self._current_pose.position
+        ):
+            self._navigation_index += 1
+
+        if self._navigation_index >= len(plan.positions):
+            raise InvariantViolationError(
+                "the active plan ended before its goal "
+                "was confirmed."
+            )
+
+        intended_position = plan.positions[
+            self._navigation_index
+        ]
+        command = self._command_toward(intended_position)
+        result = self._control.execute_step(command)
+
+        self._accept_navigation_result(
+            result,
+            command=command,
+            intended_position=intended_position,
+        )
+
+    def _command_toward(
+        self,
+        intended_position: Position,
+    ) -> MotionCommand:
+        """Return one deterministic command toward an adjacent cell."""
+
+        current_position = self._current_pose.position
+        delta_x = intended_position.x - current_position.x
+        delta_y = intended_position.y - current_position.y
+
+        if abs(delta_x) + abs(delta_y) != 1:
+            raise InvariantViolationError(
+                "successive planned positions must be "
+                "cardinally adjacent."
+            )
+
+        if delta_x == 1:
+            desired_heading = Heading.EAST
+        elif delta_x == -1:
+            desired_heading = Heading.WEST
+        elif delta_y == 1:
+            desired_heading = Heading.NORTH
+        else:
+            desired_heading = Heading.SOUTH
+
+        current_index = _CARDINAL_HEADINGS.index(
+            self._current_pose.heading
+        )
+        desired_index = _CARDINAL_HEADINGS.index(
+            desired_heading
+        )
+        right_turns = (
+            desired_index - current_index
+        ) % len(_CARDINAL_HEADINGS)
+
+        if right_turns == 0:
+            command_type = CommandType.MOVE_FORWARD
+        elif right_turns in (1, 2):
+            command_type = CommandType.TURN_RIGHT
+        else:
+            command_type = CommandType.TURN_LEFT
+
+        return MotionCommand(
+            robot_id=self._robot_id,
+            command_type=command_type,
+        )
+
+    def _accept_navigation_result(
+        self,
+        result: object,
+        *,
+        command: MotionCommand,
+        intended_position: Position,
+    ) -> None:
+        """Accept one confirmed movement or begin replanning."""
+
+        if not isinstance(result, CommandResult):
+            raise DomainValidationError(
+                "control must return a CommandResult."
+            )
+
+        if result.command is not command:
+            raise InvariantViolationError(
+                "control result must retain the supplied command."
+            )
+
+        if result.pose_before != self._current_pose:
+            raise InvariantViolationError(
+                "control result must begin at the current pose."
+            )
+
+        if result.status is CommandStatus.SUCCESS:
+            self._accept_successful_navigation_result(
+                result,
+                command=command,
+                intended_position=intended_position,
+            )
+            return
+
+        if (
+            result.status is CommandStatus.FAILED
+            and result.failure_reason is FailureReason.BLOCKED
+        ):
+            self._accept_blocked_navigation_result(
+                result,
+                command=command,
+                intended_position=intended_position,
+            )
+            return
+
+        if (
+            result.status is CommandStatus.ABORTED
+            and result.failure_reason
+            is FailureReason.SAFETY_LATCHED
+        ):
+            self._latest_error = FailureReason.SAFETY_LATCHED
+            self._state = BrainState.SAFETY_STOP
+            return
+
+        raise InvariantViolationError(
+            "outbound navigation received an unsupported "
+            "command outcome."
+        )
+
+    def _accept_successful_navigation_result(
+        self,
+        result: CommandResult,
+        *,
+        command: MotionCommand,
+        intended_position: Position,
+    ) -> None:
+        """Record one successful confirmed navigation pose."""
+
+        if command.command_type is CommandType.MOVE_FORWARD:
+            if result.pose_after.position != intended_position:
+                raise InvariantViolationError(
+                    "a successful forward command must reach "
+                    "the intended position."
+                )
+        elif (
+            result.pose_after.position
+            != self._current_pose.position
+        ):
+            raise InvariantViolationError(
+                "a successful turn must preserve position."
+            )
+
+        self._current_pose = result.pose_after
+        self._memory.record_pose(
+            PathPhase.OUTBOUND,
+            self._current_pose,
+        )
+        self._record_mission_event(
+            "outbound_step_confirmed"
+        )
+
+        if command.command_type is CommandType.MOVE_FORWARD:
+            self._navigation_index += 1
+
+        plan = self._require_active_plan()
+
+        if self._current_pose.position == plan.goal:
+            self._enter_collection()
+
+    def _accept_blocked_navigation_result(
+        self,
+        result: CommandResult,
+        *,
+        command: MotionCommand,
+        intended_position: Position,
+    ) -> None:
+        """Preserve pose and update the map before replanning."""
+
+        if command.command_type is not CommandType.MOVE_FORWARD:
+            raise InvariantViolationError(
+                "only a forward movement may report BLOCKED."
+            )
+
+        if (
+            result.pose_after != self._current_pose
+            or result.pose_before != result.pose_after
+        ):
+            raise InvariantViolationError(
+                "a blocked movement must preserve "
+                "the confirmed pose."
+            )
+
+        revised_obstacles = (
+            self._world.obstacles
+            | frozenset({intended_position})
+        )
+        self._world = replace(
+            self._world,
+            obstacles=revised_obstacles,
+        )
+        self._active_plan = None
+        self._navigation_index = 0
+        self._latest_error = FailureReason.BLOCKED
+        self._state = BrainState.OUTBOUND_REPLANNING
+        self._record_mission_event(
+            "outbound_step_blocked"
+        )
+
+    def _enter_collection(self) -> None:
+        """Confirm safe arrival without waiting in this cycle."""
+
+        self._active_plan = None
+        self._navigation_index = 0
+        self._state = BrainState.COLLECTION
+        self._record_mission_event("arrival_confirmed")
+
+    def _perform_collection(self) -> None:
+        """Remain stationary for the configured collection duration."""
+
+        mission = self._require_active_mission()
+        self._control.stop()
+
+        deadline = (
+            self._clock.monotonic()
+            + self._collection_duration_s
+        )
+
+        if not isfinite(deadline):
+            raise InvariantViolationError(
+                "the collection deadline must be finite."
+            )
+
+        self._clock.wait_until(deadline)
+        self._mission = replace(
+            mission,
+            collection_completed=True,
+        )
+        self._state = BrainState.RETURN_PREPARATION
+        self._record_mission_event(
+            "collection_completed"
+        )
+
+    def _require_active_mission(self) -> Mission:
+        """Return the active mission or reject invalid state."""
+
+        if self._mission is None:
+            raise InvariantViolationError(
+                "the current state requires an active mission."
+            )
+
+        return self._mission
+
+    def _require_active_plan(self) -> PathPlan:
+        """Return the active plan or reject invalid state."""
+
+        if self._active_plan is None:
+            raise InvariantViolationError(
+                "navigation requires an active plan."
+            )
+
+        return self._active_plan
 
     def _record_mission_event(
         self,
@@ -371,19 +795,16 @@ class DeterministicBrain:
     ) -> MissionEvent:
         """Create, store, and publish one ordered event."""
 
-        if self._mission is None:
-            raise InvariantViolationError(
-                "a mission event requires an active mission."
-            )
+        mission = self._require_active_mission()
 
         self._event_sequence += 1
         event = MissionEvent(
             event_id=(
-                f"{self._mission.mission_id}-event-"
+                f"{mission.mission_id}-event-"
                 f"{self._event_sequence}"
             ),
             sequence_number=self._event_sequence,
-            mission_id=self._mission.mission_id,
+            mission_id=mission.mission_id,
             robot_id=self._robot_id,
             occurred_at=self._clock.now(),
             source="brain",
