@@ -293,3 +293,45 @@ Verification:
 - Ruff and mypy passed across 43 source files.
 - The project-structure check passed.
 - No concrete GridWorld dependency was introduced into the Brain.
+
+## 11. Batch E1 - Nominal Return Navigation
+
+`DeterministicBrain` now prepares and executes the nominal return from
+the exact confirmed outbound history.
+
+Implemented behavior:
+
+- `RETURN_PREPARATION` calls `Memory.build_return_path()`.
+- The returned `PathRecord` identity and phase are validated.
+- The exact reversed outbound positions form the return plan.
+- Return preparation performs no movement in its update cycle.
+- The return plan uses `PathPhase.RETURN` and version 1.
+- The return plan begins at the current confirmed arrival position.
+- The return plan ends at the exact configured mission base.
+- Recorded outbound headings are not imposed during return.
+- Return commands are recalculated from positions and current heading.
+- Opposite headings use two deterministic right turns.
+- At most one return command is executed per update.
+- Duplicate recorded positions are skipped without unnecessary movement.
+- Every successful return turn and movement records a confirmed
+  `PathPhase.RETURN` pose.
+- Successful forward movement must reach the intended return position.
+- Exact base arrival clears the active plan.
+- Confirmed base arrival enters `MISSION_COMPLETED`.
+- The immutable active mission records confirmed base arrival.
+- `base_arrival_confirmed` is stored and published as an ordered event.
+- Memory remains open in `MISSION_COMPLETED` so terminal completion can
+  record its final event before `Memory.complete()` closes the recording.
+
+Return obstacle handling, terminal mission completion, failure
+classification, timeout, system error, and emergency abortion remain in
+Batch E2.
+
+Verification:
+
+- 3 nominal return tests passed.
+- 16 combined Brain lifecycle tests passed.
+- The complete suite passed with 267 tests.
+- Ruff and mypy passed across 43 source files.
+- The project-structure check passed.
+- Nominal return does not call PlanningPort or import GridWorld.

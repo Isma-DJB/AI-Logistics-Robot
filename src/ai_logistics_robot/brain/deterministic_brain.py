@@ -23,7 +23,10 @@ from ai_logistics_robot.domain.errors import (
 from ai_logistics_robot.domain.events import MissionEvent
 from ai_logistics_robot.domain.geometry import Position, RobotPose
 from ai_logistics_robot.domain.mission import Mission
-from ai_logistics_robot.domain.paths import PathPlan
+from ai_logistics_robot.domain.paths import (
+    PathPlan,
+    PathRecord,
+)
 from ai_logistics_robot.domain.perception import PerceptionSnapshot
 from ai_logistics_robot.domain.status import SystemStatus
 from ai_logistics_robot.domain.world import GridMap
@@ -278,6 +281,14 @@ class DeterministicBrain:
 
         if self._state is BrainState.COLLECTION:
             self._perform_collection()
+            return
+
+        if self._state is BrainState.RETURN_PREPARATION:
+            self._prepare_return()
+            return
+
+        if self._state is BrainState.RETURN_NAVIGATION:
+            self._navigate_return()
             return
 
     def get_status(self) -> SystemStatus:
@@ -769,6 +780,199 @@ class DeterministicBrain:
             "collection_completed"
         )
 
+    def _prepare_return(self) -> None:
+        """Build the exact reversed confirmed outbound route."""
+
+        mission = self._require_active_mission()
+        path_record = self._memory.build_return_path()
+
+        if not isinstance(path_record, PathRecord):
+            raise DomainValidationError(
+                "memory must return a PathRecord."
+            )
+
+        if path_record.mission_id != mission.mission_id:
+            raise InvariantViolationError(
+                "return path mission_id must match "
+                "the active mission."
+            )
+
+        if path_record.robot_id != self._robot_id:
+            raise InvariantViolationError(
+                "return path robot_id must match "
+                "the configured robot."
+            )
+
+        if path_record.phase is not PathPhase.RETURN:
+            raise InvariantViolationError(
+                "return path phase must be RETURN."
+            )
+
+        positions = path_record.confirmed_positions
+
+        if not positions:
+            raise InvariantViolationError(
+                "return preparation requires confirmed "
+                "outbound history."
+            )
+
+        if positions[0] != self._current_pose.position:
+            raise InvariantViolationError(
+                "the reversed outbound record must begin "
+                "at the current confirmed position."
+            )
+
+        if positions[-1] != mission.base_position:
+            raise InvariantViolationError(
+                "the reversed outbound record must end "
+                "at the mission base."
+            )
+
+        self._plan_version = 1
+        self._active_plan = PathPlan(
+            mission_id=mission.mission_id,
+            robot_id=self._robot_id,
+            phase=PathPhase.RETURN,
+            version=self._plan_version,
+            positions=positions,
+            goal=mission.base_position,
+        )
+        self._navigation_index = 1
+        self._state = BrainState.RETURN_NAVIGATION
+        self._record_mission_event(
+            "return_path_prepared"
+        )
+
+    def _navigate_return(self) -> None:
+        """Observe and execute at most one return command."""
+
+        snapshot = self._perception.observe()
+        self._accept_snapshot(snapshot)
+
+        if snapshot.hazard_detected:
+            self._control.emergency_stop(
+                FailureReason.EMERGENCY_STOP
+            )
+            self._state = BrainState.SAFETY_STOP
+            return
+
+        plan = self._require_active_plan()
+
+        if plan.phase is not PathPhase.RETURN:
+            raise InvariantViolationError(
+                "return navigation requires a RETURN plan."
+            )
+
+        if self._current_pose.position == plan.goal:
+            self._enter_mission_completed()
+            return
+
+        while (
+            self._navigation_index < len(plan.positions)
+            and plan.positions[self._navigation_index]
+            == self._current_pose.position
+        ):
+            self._navigation_index += 1
+
+        if self._navigation_index >= len(plan.positions):
+            raise InvariantViolationError(
+                "the return plan ended before base arrival "
+                "was confirmed."
+            )
+
+        intended_position = plan.positions[
+            self._navigation_index
+        ]
+        command = self._command_toward(intended_position)
+        result = self._control.execute_step(command)
+
+        self._accept_return_navigation_result(
+            result,
+            command=command,
+            intended_position=intended_position,
+        )
+
+    def _accept_return_navigation_result(
+        self,
+        result: object,
+        *,
+        command: MotionCommand,
+        intended_position: Position,
+    ) -> None:
+        """Accept and record one successful return command."""
+
+        if not isinstance(result, CommandResult):
+            raise DomainValidationError(
+                "control must return a CommandResult."
+            )
+
+        if result.command is not command:
+            raise InvariantViolationError(
+                "control result must retain the supplied command."
+            )
+
+        if result.pose_before != self._current_pose:
+            raise InvariantViolationError(
+                "control result must begin at the current pose."
+            )
+
+        if result.status is not CommandStatus.SUCCESS:
+            raise InvariantViolationError(
+                "nominal return navigation requires "
+                "a successful command result."
+            )
+
+        if command.command_type is CommandType.MOVE_FORWARD:
+            if result.pose_after.position != intended_position:
+                raise InvariantViolationError(
+                    "a successful return movement must reach "
+                    "the intended position."
+                )
+        elif (
+            result.pose_after.position
+            != self._current_pose.position
+        ):
+            raise InvariantViolationError(
+                "a successful return turn must preserve position."
+            )
+
+        self._current_pose = result.pose_after
+        self._memory.record_pose(
+            PathPhase.RETURN,
+            self._current_pose,
+        )
+        self._record_mission_event(
+            "return_step_confirmed"
+        )
+
+        if command.command_type is CommandType.MOVE_FORWARD:
+            self._navigation_index += 1
+
+        plan = self._require_active_plan()
+
+        if self._current_pose.position == plan.goal:
+            self._enter_mission_completed()
+
+    def _enter_mission_completed(self) -> None:
+        """Confirm base arrival before terminal completion."""
+
+        mission = self._require_active_mission()
+
+        if not mission.collection_completed:
+            raise InvariantViolationError(
+                "base arrival cannot precede collection."
+            )
+
+        self._mission = replace(
+            mission,
+            base_arrival_confirmed=True,
+        )
+        self._active_plan = None
+        self._navigation_index = 0
+        self._state = BrainState.MISSION_COMPLETED
+        self._record_mission_event(
+            "base_arrival_confirmed"
+        )
     def _require_active_mission(self) -> Mission:
         """Return the active mission or reject invalid state."""
 
