@@ -160,3 +160,41 @@ Verification:
 - Ruff and mypy passed.
 - The project-structure check passed.
 - No GridWorld, graphical, hardware, or network dependency was introduced.
+
+## 8. Batch B - Local Safety Latch
+
+The local safety latch, priority stop chain, rejection behavior, and
+manual-rearm boundary are now covered by dedicated tests.
+
+Verified behavior:
+
+- Emergency stop creates a critical latched `SafetyStatus`.
+- The emergency reason and `ClockPort` timestamp are preserved.
+- Every emergency request sends an explicit priority `STOP`.
+- A latched Control rejects normal commands without calling the platform.
+- Latched rejection returns `CommandStatus.ABORTED`.
+- Latched rejection uses `FailureReason.SAFETY_LATCHED`.
+- Rejected commands preserve the latest confirmed pose.
+- Normal `STOP` remains available while the latch is active.
+- Manual rearm clears only the local latch.
+- Manual rearm does not reset, move, or advance the platform.
+- Command execution can resume only after explicit rearm.
+- The latest confirmed pose survives the complete safety cycle.
+- Invalid emergency reasons leave status and platform state unchanged.
+- If the priority platform stop raises an exception, local safety remains
+  latched and retains the requested failure reason.
+- Invalid dependencies and malformed platform results are rejected.
+- A result containing a copied command is rejected as an invariant
+  violation.
+
+The external validation that a human requested rearm belongs to the future
+`MissionRunner`; `SafeRobotControl` exposes the explicit rearm operation
+but never invokes it automatically.
+
+Verification:
+
+- 10 dedicated safety-latch tests passed.
+- The complete suite passed with 251 tests.
+- Ruff and mypy passed.
+- The project-structure check passed.
+- No production change was required after Batch A.
