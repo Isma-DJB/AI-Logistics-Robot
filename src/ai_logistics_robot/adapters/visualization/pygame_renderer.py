@@ -82,6 +82,9 @@ class PygameRenderer:
     ) -> None:
         """Render one immutable world and status snapshot."""
 
+        if self._closed:
+            return
+
         if not isinstance(world, GridMap):
             raise DomainValidationError(
                 "world must be a GridMap instance."
@@ -92,9 +95,13 @@ class PygameRenderer:
                 "status must be a SystemStatus instance."
             )
 
-        if not self._settings.enabled or self._closed:
+        if not self._settings.enabled:
             return
 
+        self._validate_snapshot(
+            world,
+            status,
+        )
         self._initialize_display(world)
 
         if self._process_events():
@@ -156,12 +163,15 @@ class PygameRenderer:
     ) -> None:
         """Accept one immutable event without changing control state."""
 
+        if self._closed:
+            return
+
         if not isinstance(event, MissionEvent):
             raise DomainValidationError(
                 "event must be a MissionEvent instance."
             )
 
-        if not self._settings.enabled or self._closed:
+        if not self._settings.enabled:
             return
 
         self._recent_events.append(event)
@@ -179,6 +189,34 @@ class PygameRenderer:
         self._clock = None
         self._font = None
         self._closed = True
+
+    def _validate_snapshot(
+        self,
+        world: GridMap,
+        status: SystemStatus,
+    ) -> None:
+        """Reject spatially inconsistent display snapshots."""
+
+        if not world.contains(
+            status.robot_pose.position
+        ):
+            raise DomainValidationError(
+                "robot pose must lie within the rendered world."
+            )
+
+        plan = status.active_plan
+
+        if plan is None:
+            return
+
+        if not all(
+            world.contains(position)
+            for position in plan.positions
+        ):
+            raise DomainValidationError(
+                "every active-plan position must lie "
+                "within the rendered world."
+            )
 
     def _initialize_display(
         self,

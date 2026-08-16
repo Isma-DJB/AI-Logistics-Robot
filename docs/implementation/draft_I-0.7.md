@@ -284,3 +284,38 @@ Batch C verification established that:
 - Ruff passes for all affected files;
 - mypy passes across 44 source files;
 - the project-structure check and `pip check` pass.
+## 12. Batch D - Passive Lifecycle and Failure Rules
+
+Status: COMPLETE
+
+Batch D completed the defensive lifecycle and passivity rules of the concrete
+renderer.
+
+The adapter now:
+
+- structurally satisfies `RendererPort`;
+- rejects invalid settings and invalid open-renderer input types;
+- remains fully headless when visualization is disabled;
+- closes only its visualization resources after an SDL quit event;
+- supports repeated idempotent shutdown;
+- treats render and event operations as unconditional no-ops after shutdown;
+- rejects a confirmed robot pose outside the displayed world;
+- rejects active plans containing positions outside the displayed world;
+- performs spatial validation before initializing the SDL display;
+- preserves all immutable world, status, plan, safety, pose, and event inputs.
+
+The renderer does not issue movement, planning, mission, memory, simulation, or
+safety commands during rendering, event display, or shutdown.
+
+Batch D verification established that:
+
+- seven lifecycle rules already passed before the final defensive changes;
+- the three initial failures identified the required no-op ordering and spatial
+  validation;
+- all twenty Pygame configuration, world, status, event, and lifecycle tests
+  pass;
+- the complete repository suite passes 308 automated tests;
+- Ruff passes for the renderer and all renderer tests;
+- mypy passes across 44 source files;
+- the project-structure check confirms the platform-independent core boundary;
+- `pip check` reports no broken requirements.
