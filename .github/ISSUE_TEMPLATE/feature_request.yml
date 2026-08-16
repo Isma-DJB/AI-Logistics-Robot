@@ -1,0 +1,99 @@
+name: Feature request
+description: Propose a focused improvement to AI-Logistics-Robot.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing an improvement.
+
+        Substantial features and architectural changes should be discussed
+        before implementation begins.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: Explain the problem, limitation, or project need.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected behavior without prescribing unnecessary implementation details.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Primary component
+      options:
+        - Application and configuration
+        - Domain
+        - Ports
+        - Brain
+        - Planning
+        - Perception
+        - Control
+        - Memory
+        - Simulation adapter
+        - Monitoring
+        - Rendering
+        - Hardware integration
+        - Tests and tooling
+        - Documentation
+        - Cross-component
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements and architectural impact
+      description: |
+        Identify affected requirements, acceptance criteria, interfaces,
+        safety rules, or dependency boundaries.
+      placeholder: |
+        Functional requirements:
+        Non-functional requirements:
+        Architectural impact:
+        Safety impact:
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe other approaches or existing behavior that was considered.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Proposed acceptance criteria
+      description: List observable conditions that would demonstrate completion.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues for a similar proposal.
+          required: true
+        - label: I reviewed the current requirements and architecture documentation.
+          required: true
+        - label: I kept this proposal focused on one objective.
+          required: true
+        - label: I did not include credentials, personal data, or sensitive information.
+          required: true
