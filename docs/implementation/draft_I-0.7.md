@@ -1,9 +1,10 @@
 # Implementation Draft I-0.7 - PygameRenderer
 
-Status: IN PROGRESS
+Status: COMPLETE
 Branch: implementation/i-0.7
 Base commit: 5136ff7
 Started: August 16, 2026
+Completed: August 16, 2026
 
 ## 1. Objective
 
@@ -319,3 +320,66 @@ Batch D verification established that:
 - mypy passes across 44 source files;
 - the project-structure check confirms the platform-independent core boundary;
 - `pip check` reports no broken requirements.
+
+## 13. Batch E - Public Reference Integration and Closure
+
+Status: COMPLETE
+
+Batch E integrated the concrete renderer with the complete reference
+configuration and public project status.
+
+The reference visualization integration now combines:
+
+- the validated `configs/simulation.yaml` configuration;
+- the immutable reference `GridMap`;
+- the real deterministic `AStarPlanner`;
+- a versioned outbound `PathPlan`;
+- an active immutable `SystemStatus`;
+- an ordered immutable `MissionEvent`;
+- the public `RendererPort`;
+- the concrete passive `PygameRenderer`.
+
+The integration verifies the configured 1000-by-640-pixel reference display,
+the authorized planned goal, the active mission and plan text, the bounded
+event history, and deterministic renderer shutdown through the SDL dummy video
+driver.
+
+The public README and command-line entry point now report I-0.7 accurately.
+Development setup instructions install both the `dev` and `simulation` extras
+because the complete automated test suite includes Pygame visualization tests.
+The base package remains headless, and Pygame remains an optional runtime
+dependency.
+
+Package verification established that:
+
+- the source distribution and wheel build successfully;
+- the wheel contains the visualization package and `PygameRenderer`;
+- wheel metadata exposes the optional `simulation` extra and Pygame dependency;
+- the wheel installs successfully without dependencies in a fresh environment;
+- the base wheel command-line entry point runs without Pygame installed;
+- the built wheel reports the completed I-0.7 milestone.
+
+## 14. Final Repository Quality Gate
+
+The final repository-wide quality gate passed:
+
+- 310 automated tests passed;
+- Ruff passed across the complete repository;
+- mypy passed across 44 source files;
+- the I-0.1 project-structure check passed;
+- core packages contain no platform-specific imports;
+- `pip check` reported no broken requirements;
+- the source distribution and wheel built successfully;
+- the reference Pygame integration passed headlessly;
+- the built wheel contains the visualization implementation;
+- the headless base wheel runs without Pygame installed;
+- the source and built-wheel command-line entry points report I-0.7;
+- `git diff --check` reported no whitespace errors.
+
+## 15. Exit Decision
+
+Status: COMPLETE
+
+All five I-0.7 implementation batches and the complete repository quality gate
+are complete. The passive Pygame visualization milestone is ready for
+pull-request review and merge into `main`.

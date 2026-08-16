@@ -4,19 +4,20 @@ from ai_logistics_robot import __version__
 
 
 def main() -> int:
-    """Report the completed Brain and Control milestone."""
+    """Report the completed passive-visualization milestone."""
 
     print(
         f"AI-Logistics-Robot {__version__} "
-        "- Implementation Draft I-0.6"
+        "- Implementation Draft I-0.7"
     )
     print(
         "Domain model, validated configuration, public ports, "
         "deterministic GridWorld, A* planning, mission memory, "
-        "Brain orchestration, and safety-aware Control are ready. "
-        "Application runner, concrete perception, monitoring, and "
-        "clock adapters, graphical rendering, and physical "
-        "execution remain deferred."
+        "Brain orchestration, safety-aware Control, and passive "
+        "Pygame visualization are ready. Application runner, "
+        "concrete perception, monitoring, and clock adapters, "
+        "complete acceptance scenarios, and physical execution "
+        "remain deferred."
     )
     return 0
 

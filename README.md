@@ -6,29 +6,36 @@ The Version 1 mission is triggered by a light target. One robot travels to a saf
 
 ## Current status
 
-**Implementation Draft I-0.6 - Brain and Control**
+**Implementation Draft I-0.7 - PygameRenderer**
 
-This draft adds deterministic mission orchestration and safety-aware command
-execution behind the existing public ports.
+This draft adds a deterministic passive Pygame visualization adapter behind
+the existing `RendererPort`.
 
-`DeterministicBrain` owns the complete reference mission lifecycle:
-target-edge activation, outbound planning and navigation, obstacle-driven
-replanning, stationary collection, exact reverse-path return, return
-detours, and explicit terminal outcomes.
+`PygameRenderer` displays:
 
-`SafeRobotControl` validates and executes one command at a time, preserves
-confirmed robot poses, and owns the priority safety latch and manual rearm
-behavior.
+- the origin-aware immutable grid and its traversable cells;
+- obstacles, the base, the target, and authorized arrival cells;
+- the confirmed robot pose and all four cardinal headings;
+- the active path and its authorized goal;
+- the Brain state, mission status, plan version, safety latch, and latest error;
+- a bounded list of recent immutable mission events.
 
-The complete reference configuration is verified with the real `GridWorld`,
-`AStarPlanner`, `InMemoryMissionMemory`, `SafeRobotControl`, and
-`DeterministicBrain` implementations. Independent executions produce the
-same confirmed paths, commands, events, collection deadline, and successful
-mission result.
+Rendering remains strictly passive. The adapter does not plan movement, execute
+commands, mutate confirmed state, or influence Brain and Control decisions.
+Closing the SDL window closes only the visualization adapter.
+
+Pygame remains an optional simulation dependency. The platform-independent
+core and headless `GridWorld` continue to work without importing it.
+
+The reference integration combines the validated YAML configuration,
+`AStarPlanner`, `SystemStatus`, `MissionEvent`, and `PygameRenderer`. It verifies
+the complete reference world, plan, status panel, bounded events, and renderer
+shutdown with the SDL dummy video driver.
 
 The complete application runner, concrete perception, monitoring and clock
-adapters, graphical rendering, and physical integration remain intentionally
-deferred beyond I-0.6.
+adapters, complete acceptance scenarios, and physical integration remain
+intentionally deferred beyond I-0.7.
+
 ## Architecture
 
 The V1 core is divided into the following modules:
@@ -59,7 +66,7 @@ Concrete platforms remain behind adapters. The Brain must never import Pygame, G
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,simulation]"
 ```
 
 ### Linux or macOS
@@ -68,14 +75,12 @@ python -m pip install -e ".[dev]"
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
-
-Install the optional simulation dependency when the Pygame work begins:
-
-```bash
 python -m pip install -e ".[dev,simulation]"
 ```
+
+The `simulation` extra installs the optional Pygame adapter required by the
+complete development test suite. A base installation remains headless and does
+not require Pygame.
 
 ## Verification
 
