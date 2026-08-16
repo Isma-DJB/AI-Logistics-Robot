@@ -356,3 +356,67 @@ Batch A verification established that:
 - `pip check` reports no broken requirements;
 - headless adapter import does not import Pygame;
 - core packages remain free of platform-specific imports.
+## 13. Batch B - MissionRunner Lifecycle
+
+Status: COMPLETE
+
+Batch B implemented the deterministic application execution loop behind the
+public application boundary.
+
+`MissionRunner` now:
+
+- validates all Brain, Control, Simulation, Monitoring, and Renderer ports;
+- accepts one validated `Settings` instance before execution;
+- rejects a simulation world that differs from the configured immutable world;
+- confirms the configured robot identity and initial pose through
+  `SystemStatus`;
+- executes at most one `Brain.update()` per loop cycle;
+- supports bounded deterministic execution without inventing a terminal result;
+- supports unbounded execution until an explicit normal stop or safety stop;
+- renders one immutable world and status snapshot after every completed cycle;
+- forwards newly published mission events once in increasing sequence order;
+- exposes read-only status inspection without execution or rendering effects;
+- performs a priority emergency stop before the Brain safety transition;
+- terminates an active invocation after a latched safety stop;
+- requires explicit manual safety rearm;
+- keeps safety rearm separate from application reset;
+- prevents restart from a previous safety-stop state until reset;
+- rejects reset while active or while the safety latch remains set;
+- permits reset only from the configured confirmed initial pose;
+- resets Simulation and Brain temporary state without clearing monitoring
+  history;
+- never plans, constructs motion commands, interprets navigation outcomes, or
+  changes Brain state directly.
+
+The runner depends only on validated settings, immutable domain values, and
+public ports. `SystemStatus` remains the authoritative application view of the
+confirmed pose. The runner does not access a concrete `GridWorld.current_pose`
+extension that is absent from `SimulationPort`.
+
+Batch B verification also corrected two test assumptions:
+
+- status snapshots are compared by immutable value because a Brain may return a
+  fresh read-only snapshot for every `get_status()` call;
+- the reset rejection fixture now derives a position guaranteed to differ from
+  the configured initial position instead of assuming that `(1, 1)` is
+  different.
+
+The initial implementation briefly accessed `current_pose` through the static
+`SimulationPort` type. mypy exposed that architectural violation, and the
+access was removed rather than widening the public port or suppressing the
+type error.
+
+Batch B verification established that:
+
+- the initial test failed only because `MissionRunner` was absent;
+- all 14 focused MissionRunner lifecycle tests pass;
+- bounded and explicitly stopped execution remain deterministic;
+- emergency-stop ordering is verified directly;
+- new monitoring events are displayed exactly once;
+- safety rearm cannot implicitly reset or resume an aborted mission;
+- reset cannot bypass the safety latch or an unconfirmed pose;
+- the complete repository suite passes 348 automated tests;
+- Ruff passes for every affected application and test file;
+- mypy passes across 48 source files;
+- the project-structure check confirms the platform-independent core boundary;
+- `pip check` reports no broken requirements.
