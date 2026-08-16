@@ -44,7 +44,7 @@ development dependencies:
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,simulation]"
 ```
 
 On Linux or macOS:
@@ -53,7 +53,7 @@ On Linux or macOS:
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,simulation]"
 ```
 
 ## Branch and Commit Workflow

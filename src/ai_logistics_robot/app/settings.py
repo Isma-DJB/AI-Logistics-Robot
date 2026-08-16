@@ -46,6 +46,22 @@ def _validate_non_negative_number(
         )
 
 
+def _validate_positive_integer(
+    name: str,
+    value: object,
+) -> None:
+    """Require a strictly positive integer."""
+
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 1
+    ):
+        raise DomainValidationError(
+            f"{name} must be a positive integer."
+        )
+
+
 def _validate_optional_positive_integer(
     name: str,
     value: object,
@@ -198,6 +214,45 @@ class MissionSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class RendererSettings:
+    """Validated passive-renderer configuration."""
+
+    enabled: bool
+    window_title: str
+    cell_size_px: int
+    status_panel_width_px: int
+    frames_per_second: int
+    recent_event_limit: int
+
+    def __post_init__(self) -> None:
+        """Validate all graphical configuration values."""
+
+        if not isinstance(self.enabled, bool):
+            raise DomainValidationError(
+                "enabled must be a boolean."
+            )
+
+        _validate_text("window_title", self.window_title)
+
+        _validate_positive_integer(
+            "cell_size_px",
+            self.cell_size_px,
+        )
+        _validate_positive_integer(
+            "status_panel_width_px",
+            self.status_panel_width_px,
+        )
+        _validate_positive_integer(
+            "frames_per_second",
+            self.frames_per_second,
+        )
+        _validate_positive_integer(
+            "recent_event_limit",
+            self.recent_event_limit,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Validated configuration required to assemble V1."""
 
@@ -207,6 +262,7 @@ class Settings:
     robot: RobotSettings
     target: TargetSettings
     mission: MissionSettings
+    renderer: RendererSettings
 
     def __post_init__(self) -> None:
         """Validate configuration types and cross-object consistency."""
@@ -243,6 +299,11 @@ class Settings:
         if not isinstance(self.mission, MissionSettings):
             raise DomainValidationError(
                 "mission must be a MissionSettings instance."
+            )
+
+        if not isinstance(self.renderer, RendererSettings):
+            raise DomainValidationError(
+                "renderer must be a RendererSettings instance."
             )
 
         if not self.grid_map.contains(
@@ -426,6 +487,7 @@ def load_settings(path: str | Path) -> Settings:
     pose_data = _required_mapping(robot_data, "initial_pose")
     target_data = _required_mapping(root, "target")
     mission_data = _required_mapping(root, "mission")
+    renderer_data = _required_mapping(root, "renderer")
 
     origin = _parse_position(
         "grid origin",
@@ -520,6 +582,41 @@ def load_settings(path: str | Path) -> Settings:
             confidence_threshold=cast(
                 float | None,
                 target_data.get("confidence_threshold"),
+            ),
+        ),
+        renderer=RendererSettings(
+            enabled=cast(
+                bool,
+                _required(renderer_data, "enabled"),
+            ),
+            window_title=cast(
+                str,
+                _required(renderer_data, "window_title"),
+            ),
+            cell_size_px=cast(
+                int,
+                _required(renderer_data, "cell_size_px"),
+            ),
+            status_panel_width_px=cast(
+                int,
+                _required(
+                    renderer_data,
+                    "status_panel_width_px",
+                ),
+            ),
+            frames_per_second=cast(
+                int,
+                _required(
+                    renderer_data,
+                    "frames_per_second",
+                ),
+            ),
+            recent_event_limit=cast(
+                int,
+                _required(
+                    renderer_data,
+                    "recent_event_limit",
+                ),
             ),
         ),
         mission=MissionSettings(

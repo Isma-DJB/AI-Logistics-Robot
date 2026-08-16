@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 
 from ai_logistics_robot.app.settings import (
     MissionSettings,
+    RendererSettings,
     RobotSettings,
     ScenarioSettings,
     Settings,
@@ -64,6 +65,14 @@ class SettingsTests(unittest.TestCase):
                 debounce_ms=None,
                 confidence_threshold=None,
             ),
+            renderer=RendererSettings(
+                enabled=True,
+                window_title="AI-Logistics-Robot",
+                cell_size_px=64,
+                status_panel_width_px=360,
+                frames_per_second=30,
+                recent_event_limit=6,
+            ),
             mission=MissionSettings(
                 collection_duration_s=3,
                 maximum_replans=None,
@@ -113,6 +122,7 @@ class SettingsTests(unittest.TestCase):
                         robot=valid.robot,
                         target=valid.target,
                         mission=valid.mission,
+                        renderer=valid.renderer,
                     )
 
     def test_scenario_requires_valid_identity_and_seed(self) -> None:
@@ -203,6 +213,7 @@ class SettingsTests(unittest.TestCase):
                 robot=robot,
                 target=valid.target,
                 mission=valid.mission,
+                renderer=valid.renderer,
             )
 
     def test_initial_pose_must_be_traversable(self) -> None:
@@ -224,6 +235,7 @@ class SettingsTests(unittest.TestCase):
                 robot=robot,
                 target=valid.target,
                 mission=valid.mission,
+                renderer=valid.renderer,
             )
 
     def test_target_position_must_match_grid_map(self) -> None:
@@ -242,6 +254,23 @@ class SettingsTests(unittest.TestCase):
                 robot=valid.robot,
                 target=target,
                 mission=valid.mission,
+                renderer=valid.renderer,
+            )
+
+    def test_renderer_settings_must_have_valid_type(
+        self,
+    ) -> None:
+        valid = self.valid_settings()
+
+        with self.assertRaises(DomainValidationError):
+            Settings(
+                schema_version=valid.schema_version,
+                scenario=valid.scenario,
+                grid_map=valid.grid_map,
+                robot=valid.robot,
+                target=valid.target,
+                mission=valid.mission,
+                renderer=None,  # type: ignore[arg-type]
             )
 
     def test_settings_are_immutable(self) -> None:
