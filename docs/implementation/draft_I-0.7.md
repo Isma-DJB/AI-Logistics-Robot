@@ -239,3 +239,48 @@ Batch B verification established that:
 - the project-structure check confirms that core packages contain no
   platform-specific imports;
 - `pip check` reports no broken requirements.
+## 11. Batch C - Status, Plan, and Event Visualization
+
+Status: COMPLETE
+
+Batch C completed the informational visualization required by FR-25.
+
+The active path is displayed as a passive ordered overlay. Its authorized goal
+has a distinct marker, and the confirmed robot marker remains visually
+dominant at the current pose.
+
+The status panel now displays:
+
+- the robot identity;
+- the current Brain state;
+- the confirmed position and heading;
+- the mission identity and lifecycle status;
+- the active path phase and version;
+- the confirmed local safety-latch state;
+- the latest normalized error;
+- a bounded list of recent ordered mission events.
+
+Safe and latched safety states are distinguished explicitly. A latched state
+includes its normalized failure reason, while the latest system error is
+displayed separately.
+
+`display_event()` stores only the bounded passive display history configured by
+`recent_event_limit`. It does not publish, persist, reorder, or interpret
+events. Read-only tuple views expose the most recent events and the
+deterministically prepared panel lines for verification.
+
+Batch C verification established that:
+
+- all five initial tests failed only because the planned display features were
+  absent;
+- the active path and goal use distinct deterministic overlays;
+- confirmed active-mission status is represented accurately;
+- safety-stop, aborted-mission, and emergency-error information remain
+  distinguishable;
+- old events are removed when the configured display limit is exceeded;
+- recent events appear in deterministic order;
+- all ten Pygame world and status tests pass;
+- the complete repository suite passes 298 automated tests;
+- Ruff passes for all affected files;
+- mypy passes across 44 source files;
+- the project-structure check and `pip check` pass.

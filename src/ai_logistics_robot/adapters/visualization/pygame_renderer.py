@@ -1,5 +1,6 @@
 """Passive deterministic Pygame visualization adapter."""
 
+from collections import deque
 from typing import ClassVar
 
 import pygame
@@ -28,6 +29,11 @@ class PygameRenderer:
     ARRIVAL_COLOR: ClassVar[Color] = (240, 190, 70)
     ROBOT_COLOR: ClassVar[Color] = (38, 120, 210)
     HEADING_COLOR: ClassVar[Color] = (255, 255, 255)
+    PLAN_COLOR: ClassVar[Color] = (145, 100, 215)
+    GOAL_COLOR: ClassVar[Color] = (255, 145, 45)
+    TEXT_COLOR: ClassVar[Color] = (238, 242, 246)
+    MUTED_TEXT_COLOR: ClassVar[Color] = (165, 178, 192)
+    ALERT_TEXT_COLOR: ClassVar[Color] = (255, 105, 100)
 
     def __init__(
         self,
@@ -44,6 +50,11 @@ class PygameRenderer:
         self._settings = settings
         self._surface: pygame.Surface | None = None
         self._clock: pygame.time.Clock | None = None
+        self._font: pygame.font.Font | None = None
+        self._recent_events: deque[MissionEvent] = deque(
+            maxlen=settings.recent_event_limit
+        )
+        self._visible_lines: tuple[str, ...] = ()
         self._closed = False
 
     @property
@@ -51,6 +62,18 @@ class PygameRenderer:
         """Report whether visualization has been closed."""
 
         return self._closed
+
+    @property
+    def recent_events(self) -> tuple[MissionEvent, ...]:
+        """Return the bounded immutable event view."""
+
+        return tuple(self._recent_events)
+
+    @property
+    def visible_lines(self) -> tuple[str, ...]:
+        """Return the text prepared for the latest rendered panel."""
+
+        return self._visible_lines
 
     def render(
         self,
@@ -104,7 +127,17 @@ class PygameRenderer:
             surface,
             world,
         )
+        self._draw_active_plan(
+            surface,
+            world,
+            status,
+        )
         self._draw_robot(
+            surface,
+            world,
+            status,
+        )
+        self._draw_status_panel(
             surface,
             world,
             status,
@@ -128,6 +161,11 @@ class PygameRenderer:
                 "event must be a MissionEvent instance."
             )
 
+        if not self._settings.enabled or self._closed:
+            return
+
+        self._recent_events.append(event)
+
     def close(self) -> None:
         """Close visualization resources idempotently."""
 
@@ -139,6 +177,7 @@ class PygameRenderer:
 
         self._surface = None
         self._clock = None
+        self._font = None
         self._closed = True
 
     def _initialize_display(
@@ -158,6 +197,9 @@ class PygameRenderer:
         if not pygame.display.get_init():
             pygame.display.init()
 
+        if not pygame.font.get_init():
+            pygame.font.init()
+
         current_surface = pygame.display.get_surface()
 
         if (
@@ -176,6 +218,19 @@ class PygameRenderer:
 
         if self._clock is None:
             self._clock = pygame.time.Clock()
+
+        if self._font is None:
+            font_size = max(
+                14,
+                min(
+                    22,
+                    self._settings.cell_size_px // 2,
+                ),
+            )
+            self._font = pygame.font.Font(
+                None,
+                font_size,
+            )
 
     def _process_events(self) -> bool:
         """Close only the renderer when SDL requests termination."""
@@ -286,6 +341,66 @@ class PygameRenderer:
             cell_size,
         )
 
+    def _draw_active_plan(
+        self,
+        surface: pygame.Surface,
+        world: GridMap,
+        status: SystemStatus,
+    ) -> None:
+        """Draw the informational active-plan overlay."""
+
+        plan = status.active_plan
+
+        if plan is None:
+            return
+
+        points = tuple(
+            self._cell_rectangle(
+                world,
+                position,
+            ).center
+            for position in plan.positions
+        )
+        line_width = max(
+            2,
+            self._settings.cell_size_px // 10,
+        )
+        marker_radius = max(
+            2,
+            self._settings.cell_size_px // 8,
+        )
+        goal_radius = max(
+            3,
+            self._settings.cell_size_px // 6,
+        )
+
+        if len(points) > 1:
+            pygame.draw.lines(
+                surface,
+                self.PLAN_COLOR,
+                False,
+                points,
+                width=line_width,
+            )
+
+        for point in points:
+            pygame.draw.circle(
+                surface,
+                self.PLAN_COLOR,
+                point,
+                marker_radius,
+            )
+
+        pygame.draw.circle(
+            surface,
+            self.GOAL_COLOR,
+            self._cell_rectangle(
+                world,
+                plan.goal,
+            ).center,
+            goal_radius,
+        )
+
     def _draw_robot(
         self,
         surface: pygame.Surface,
@@ -325,6 +440,160 @@ class PygameRenderer:
             center,
             robot_radius,
         )
+
+    def _draw_status_panel(
+        self,
+        surface: pygame.Surface,
+        world: GridMap,
+        status: SystemStatus,
+    ) -> None:
+        """Draw confirmed status and recent event text."""
+
+        status_lines = self._status_lines(status)
+        event_lines = self._event_lines()
+
+        self._visible_lines = (
+            status_lines
+            + ("",)
+            + event_lines
+        )
+
+        font = self._require_font()
+        padding = max(
+            8,
+            self._settings.cell_size_px // 4,
+        )
+        left = (
+            world.width
+            * self._settings.cell_size_px
+            + padding
+        )
+        top = padding
+        line_height = font.get_linesize()
+
+        for line in self._visible_lines:
+            if line:
+                text_surface = font.render(
+                    line,
+                    True,
+                    self._line_color(line),
+                )
+                surface.blit(
+                    text_surface,
+                    (left, top),
+                )
+
+            top += line_height
+
+    def _status_lines(
+        self,
+        status: SystemStatus,
+    ) -> tuple[str, ...]:
+        """Build deterministic confirmed-status text."""
+
+        pose = status.robot_pose
+
+        if (
+            status.mission_id is None
+            or status.mission_status is None
+        ):
+            mission_line = "Mission: none"
+        else:
+            mission_line = (
+                f"Mission: {status.mission_id} "
+                f"[{status.mission_status.value}]"
+            )
+
+        if status.active_plan is None:
+            plan_line = "Plan: none"
+        else:
+            plan_line = (
+                f"Plan: {status.active_plan.phase.value} "
+                f"v{status.active_plan.version}"
+            )
+
+        if status.safety_status.latched:
+            reason = status.safety_status.reason
+            reason_text = (
+                reason.value
+                if reason is not None
+                else "UNKNOWN"
+            )
+            safety_line = (
+                f"Safety: LATCHED ({reason_text})"
+            )
+        else:
+            safety_line = "Safety: SAFE"
+
+        error_line = (
+            "Error: none"
+            if status.latest_error is None
+            else f"Error: {status.latest_error.value}"
+        )
+
+        return (
+            f"Robot: {status.robot_id}",
+            f"State: {status.brain_state.value}",
+            (
+                f"Pose: ({pose.position.x}, "
+                f"{pose.position.y}) "
+                f"{pose.heading.value}"
+            ),
+            mission_line,
+            plan_line,
+            safety_line,
+            error_line,
+        )
+
+    def _event_lines(self) -> tuple[str, ...]:
+        """Build deterministic recent-event text."""
+
+        if not self._recent_events:
+            return (
+                "Recent events:",
+                "Event: none",
+            )
+
+        return (
+            "Recent events:",
+            *(
+                (
+                    f"Event: #{event.sequence_number} "
+                    f"{event.name}"
+                )
+                for event in self._recent_events
+            ),
+        )
+
+    def _line_color(
+        self,
+        line: str,
+    ) -> Color:
+        """Select a passive text color by displayed severity."""
+
+        if line.startswith("Safety: LATCHED"):
+            return self.ALERT_TEXT_COLOR
+
+        if (
+            line.startswith("Error:")
+            and line != "Error: none"
+        ):
+            return self.ALERT_TEXT_COLOR
+
+        if line == "Recent events:":
+            return self.MUTED_TEXT_COLOR
+
+        return self.TEXT_COLOR
+
+    def _require_font(self) -> pygame.font.Font:
+        """Return the initialized renderer font."""
+
+        if self._font is None:
+            raise RuntimeError(
+                "the renderer font is not initialized."
+            )
+
+        return self._font
 
     def _heading_tip(
         self,
