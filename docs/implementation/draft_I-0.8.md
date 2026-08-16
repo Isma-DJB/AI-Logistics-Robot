@@ -420,3 +420,64 @@ Batch B verification established that:
 - mypy passes across 48 source files;
 - the project-structure check confirms the platform-independent core boundary;
 - `pip check` reports no broken requirements.
+## 14. Batch C - Reference Bootstrap Assembly
+
+Status: COMPLETE
+
+Batch C implemented the complete deterministic simulation dependency assembly.
+
+`build_simulation_application()` now validates one `Settings` instance and
+constructs:
+
+- the configured immutable `GridMap` inside a fresh `GridWorld`;
+- one `SimulatedClock` backed by that `GridWorld`;
+- one externally controlled `GridWorldPerception`;
+- one deterministic `AStarPlanner`;
+- one safety-aware `SafeRobotControl`;
+- one fresh `InMemoryMissionMemory`;
+- one multi-mission `InMemoryMonitoring` history;
+- one complete `DeterministicBrain`;
+- one passive renderer selected from validated settings;
+- one configured `MissionRunner`.
+
+The caller supplies one timezone-aware simulation epoch explicitly. This keeps
+wall-clock replay deterministic without adding an unvalidated current-time
+dependency or a second simulation clock.
+
+`SimulationApplication` exposes the assembled component references through one
+frozen, slotted application record. Scenario tests can control target, hazard,
+observations, and execution through public component operations without
+reaching into Brain internals or replacing assembled dependencies.
+
+Every call creates isolated Simulation, Clock, Perception, Control, Memory,
+Monitoring, Brain, Renderer, and Runner state. Only the immutable validated
+settings values are shared.
+
+Renderer selection remains passive and configuration-driven:
+
+- disabled visualization creates `HeadlessRenderer`;
+- enabled visualization lazily imports and creates `PygameRenderer`;
+- importing or assembling the headless application does not import Pygame;
+- no graphical dependency leaks into the platform-independent application
+  execution path.
+
+`bootstrap.py` is the application composition root and is therefore the only
+application module that knows all reference concrete implementations.
+`MissionRunner` continues to depend only on public ports.
+
+Batch C verification established that:
+
+- the initial test failed only because the public bootstrap was absent;
+- all 8 focused bootstrap tests pass;
+- every assembled component satisfies its approved public port;
+- component state matches the validated settings and explicit epoch;
+- graphical and headless renderer selection is deterministic;
+- separate assemblies contain isolated mutable state;
+- application component references are read-only;
+- invalid settings are rejected with `DomainValidationError`;
+- independent headless assembly does not import Pygame;
+- the complete repository suite passes 356 automated tests;
+- Ruff passes for every affected application and test file;
+- mypy passes across 48 source files;
+- the project-structure check confirms the platform-independent core boundary;
+- `pip check` reports no broken requirements.
