@@ -5,6 +5,14 @@ scenario:
   clock: simulated
   random_seed: 1001
 
+renderer:
+  enabled: true
+  window_title: AI-Logistics-Robot
+  cell_size_px: 64
+  status_panel_width_px: 360
+  frames_per_second: 30
+  recent_event_limit: 6
+
 grid:
   width: 10
   height: 10
