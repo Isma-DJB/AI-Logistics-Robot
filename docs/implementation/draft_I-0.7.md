@@ -199,3 +199,43 @@ Batch A verification established that:
 - the project-structure check passes;
 - `pip check` reports no broken requirements;
 - no Pygame import was introduced during the configuration batch.
+## 10. Batch B - Deterministic World Rendering
+
+Status: COMPLETE
+
+Batch B introduced the concrete passive `PygameRenderer` adapter.
+
+The renderer now:
+
+- initializes its SDL display lazily on the first render operation;
+- derives window dimensions from the immutable world and renderer settings;
+- supports arbitrary configured grid origins;
+- maps increasing domain `y` coordinates upward on screen;
+- distinguishes traversable cells, obstacles, the base, the target, and
+  authorized arrival cells;
+- displays the confirmed robot position;
+- displays all four cardinal headings deterministically;
+- produces identical pixels for repeated identical snapshots;
+- processes SDL close events without issuing control or mission commands;
+- releases display resources idempotently.
+
+Pygame is imported only by
+`adapters.visualization.pygame_renderer`. Core packages remain independent of
+the optional graphical platform.
+
+The installed Pygame annotations import NumPy 2.5.1 stubs containing syntax
+that requires a Python 3.12 parser, while the project intentionally retains
+Python 3.11 as its minimum target. A scoped mypy override skips only the
+transitive NumPy stubs. Strict checking remains active for all project source
+files and for the Pygame renderer itself.
+
+Batch B verification established that:
+
+- the initial test failed because `PygameRenderer` did not yet exist;
+- all five deterministic world-rendering tests pass with the SDL dummy driver;
+- the complete repository suite passes 293 automated tests;
+- Ruff passes across the complete repository;
+- mypy passes across 44 source files;
+- the project-structure check confirms that core packages contain no
+  platform-specific imports;
+- `pip check` reports no broken requirements.

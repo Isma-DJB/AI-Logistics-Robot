@@ -51,3 +51,8 @@ python_version = "3.11"
 strict = true
 packages = ["ai_logistics_robot"]
 mypy_path = "src"
+follow_imports_for_stubs = true
+
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
