@@ -2,14 +2,11 @@
 
 import os
 import unittest
-from contextlib import redirect_stdout
 from datetime import UTC, datetime
-from io import StringIO
 from pathlib import Path
 
 import pygame
 
-from ai_logistics_robot.__main__ import main
 from ai_logistics_robot.adapters.visualization import PygameRenderer
 from ai_logistics_robot.app.settings import Settings, load_settings
 from ai_logistics_robot.domain.enums import (
@@ -153,29 +150,6 @@ class PygameRendererReferenceTests(unittest.TestCase):
             pygame.display.get_surface()
         )
 
-    def test_command_line_reports_i_0_7_renderer_milestone(
-        self,
-    ) -> None:
-        output = StringIO()
-
-        with redirect_stdout(output):
-            result = main()
-
-        rendered_output = output.getvalue()
-
-        self.assertEqual(result, 0)
-        self.assertIn(
-            "Implementation Draft I-0.7",
-            rendered_output,
-        )
-        self.assertIn(
-            "passive Pygame visualization",
-            rendered_output,
-        )
-        self.assertNotIn(
-            "graphical rendering",
-            rendered_output.lower(),
-        )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 # Implementation Draft I-0.8 - Complete Software Scenarios and Acceptance Tests
 
-Status: IN PROGRESS
+Status: COMPLETE
 Branch: implementation/i-0.8
 Base commit: f002ad3
 Started: August 16, 2026
+Completed: August 16, 2026
 
 ## 1. Objective
 
@@ -559,3 +560,88 @@ Batch D verification established that:
 - mypy passes across 48 source files;
 - the project-structure check confirms the platform-independent core boundary;
 - `pip check` reports no broken requirements.
+## 16. Batch E - Public Software Closure
+
+Status: COMPLETE
+
+Batch E closed the public simulation-side V1 software milestone.
+
+The public application package exports:
+
+- `MissionRunner`;
+- `SimulationApplication`;
+- `build_simulation_application()`.
+
+The project metadata continues to expose the
+`ai-logistics-robot = ai_logistics_robot.__main__:main` console script.
+Both the installed console script and `python -m ai_logistics_robot` now report
+Implementation Draft I-0.8 and accurately distinguish complete simulation-side
+software from the physical work assigned to I-0.9 and I-1.0.
+
+`README.md` now documents:
+
+- the complete I-0.8 software capability;
+- all public application interfaces;
+- AC-01 through AC-12 and SEQ-01 through SEQ-03 coverage;
+- deterministic replay and repeated mission support;
+- the optional Pygame boundary;
+- the 370-test repository suite;
+- the public status commands;
+- the remaining hardware diagnostics, calibration, and integration phases.
+
+The old reference mission integration contained local implementations of a
+clock, simulation wrapper, perception adapter, and monitoring adapter. Those
+duplicates were removed. The integration now uses the public reference
+bootstrap and the real `SimulatedClock`, `GridWorld`, `GridWorldPerception`,
+`InMemoryMonitoring`, `HeadlessRenderer`, `SafeRobotControl`,
+`DeterministicBrain`, and `MissionRunner`.
+
+Unit-level test doubles remain intentionally local where they isolate one
+component, inject invalid results, record call order, or verify structural port
+behavior. Only the obsolete integration-level replacement implementations were
+removed.
+
+Command-line verification was also removed from the Pygame integration test.
+Public status behavior now belongs exclusively to the dedicated command-line
+test module, while the Pygame integration retains only graphical reference
+verification.
+
+Package verification established that:
+
+- one source distribution and one universal wheel build successfully;
+- the source distribution contains the README, project metadata, and public
+  source modules;
+- the wheel contains the complete application, adapters, Brain, Control,
+  domain, memory, planning, and ports packages;
+- the wheel contains the declared console entry point;
+- a clean temporary environment installs the wheel and its declared `PyYAML`
+  dependency;
+- `pip check` passes inside that clean environment;
+- the installed application interfaces import without importing Pygame;
+- both installed command-line entry points return success.
+
+The first clean-environment smoke attempt intentionally installed the wheel
+with `--no-deps`. Importing the public application then correctly failed because
+the required `PyYAML` dependency was absent. The verification procedure was
+corrected to install declared dependencies normally. No package source or
+dependency declaration was defective.
+
+Batch E verification established that:
+
+- all 4 dedicated public-status tests pass;
+- all 3 reusable reference-application integration tests pass;
+- the focused Pygame reference integration remains passive and passes;
+- no obsolete reference integration adapter remains;
+- the complete repository suite discovers and passes 370 tests;
+- Ruff passes across the complete repository;
+- mypy passes across 48 source files;
+- the project-structure check passes;
+- the headless core remains free of direct platform-specific imports;
+- repository and clean-environment dependency checks pass;
+- wheel and source-distribution contents are complete;
+- the public source and installed status commands report I-0.8 accurately.
+
+Every I-0.8 exit condition is satisfied. Complete simulation-side V1 behavior
+is implemented and executable without hardware. Hardware diagnostics and
+calibration proceed in I-0.9, followed by physical integration and final V1
+validation in I-1.0.
