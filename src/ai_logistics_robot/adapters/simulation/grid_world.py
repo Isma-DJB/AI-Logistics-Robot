@@ -1,5 +1,6 @@
 """Deterministic headless GridWorld simulation adapter."""
 
+from dataclasses import replace
 from math import isfinite
 
 from ai_logistics_robot.domain.commands import (
@@ -91,6 +92,7 @@ class GridWorld:
         "_initial_pose",
         "_current_pose",
         "_elapsed_time_seconds",
+        "_transient_obstacles",
     )
 
     def __init__(
@@ -127,6 +129,9 @@ class GridWorld:
         self._initial_pose = initial_pose
         self._current_pose = initial_pose
         self._elapsed_time_seconds = 0.0
+        self._transient_obstacles: frozenset[Position] = (
+            frozenset()
+        )
 
     @property
     def current_pose(self) -> RobotPose:
@@ -140,16 +145,82 @@ class GridWorld:
 
         return self._elapsed_time_seconds
 
+    @property
+    def transient_obstacles(self) -> frozenset[Position]:
+        """Return the immutable unplanned scenario obstacles."""
+
+        return self._transient_obstacles
+
+    def set_transient_obstacles(
+        self,
+        obstacles: frozenset[Position],
+    ) -> None:
+        """Replace externally controlled unplanned obstacles."""
+
+        if not isinstance(obstacles, frozenset):
+            raise DomainValidationError(
+                "transient obstacles must be a frozenset."
+            )
+
+        if not all(
+            isinstance(position, Position)
+            for position in obstacles
+        ):
+            raise DomainValidationError(
+                "every transient obstacle must be "
+                "a Position instance."
+            )
+
+        for position in obstacles:
+            if not self._world.contains(position):
+                raise DomainValidationError(
+                    "every transient obstacle must lie "
+                    "within the configured world."
+                )
+
+            if not self._world.is_traversable(position):
+                raise DomainValidationError(
+                    "a transient obstacle must begin on "
+                    "a configured traversable cell."
+                )
+
+            if position == self._current_pose.position:
+                raise DomainValidationError(
+                    "a transient obstacle cannot replace "
+                    "the confirmed robot position."
+                )
+
+            if position in (
+                self._world.base_position,
+                self._world.target_position,
+            ):
+                raise DomainValidationError(
+                    "a transient obstacle cannot replace "
+                    "the configured base or target."
+                )
+
+        self._transient_obstacles = obstacles
+
     def reset(self) -> None:
-        """Restore the configured initial pose and simulated time."""
+        """Restore initial pose, time, and scenario controls."""
 
         self._current_pose = self._initial_pose
         self._elapsed_time_seconds = 0.0
+        self._transient_obstacles = frozenset()
 
     def read_world(self) -> GridMap:
-        """Return the configured immutable grid map."""
+        """Return the immutable currently visible grid map."""
 
-        return self._world
+        if not self._transient_obstacles:
+            return self._world
+
+        return replace(
+            self._world,
+            obstacles=(
+                self._world.obstacles
+                | self._transient_obstacles
+            ),
+        )
 
     def apply_command(
         self,
@@ -231,7 +302,10 @@ class GridWorld:
                 failure_reason=FailureReason.OUT_OF_BOUNDS,
             )
 
-        if not self._world.is_traversable(candidate):
+        if (
+            candidate in self._transient_obstacles
+            or not self._world.is_traversable(candidate)
+        ):
             return self._reject_movement(
                 command=command,
                 failure_reason=FailureReason.BLOCKED,

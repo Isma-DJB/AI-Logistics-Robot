@@ -946,7 +946,7 @@ class DeterministicBrain:
             )
 
         if self._current_pose.position == plan.goal:
-            self._enter_mission_completed()
+            self._align_return_heading_or_complete()
             return
 
         while (
@@ -1073,13 +1073,60 @@ class DeterministicBrain:
         if command.command_type is CommandType.MOVE_FORWARD:
             self._navigation_index += 1
 
-        plan = self._require_active_plan()
-
-        if self._current_pose.position == plan.goal:
+        if self._current_pose == self._initial_pose:
             self._enter_mission_completed()
 
+    def _align_return_heading_or_complete(self) -> None:
+        """Align the confirmed base heading one command per cycle."""
+
+        if (
+            self._current_pose.position
+            != self._initial_pose.position
+        ):
+            raise InvariantViolationError(
+                "base alignment requires the configured "
+                "initial position."
+            )
+
+        if self._current_pose == self._initial_pose:
+            self._enter_mission_completed()
+            return
+
+        current_index = _CARDINAL_HEADINGS.index(
+            self._current_pose.heading
+        )
+        desired_index = _CARDINAL_HEADINGS.index(
+            self._initial_pose.heading
+        )
+        right_turns = (
+            desired_index - current_index
+        ) % len(_CARDINAL_HEADINGS)
+
+        command_type = (
+            CommandType.TURN_RIGHT
+            if right_turns in (1, 2)
+            else CommandType.TURN_LEFT
+        )
+        command = MotionCommand(
+            robot_id=self._robot_id,
+            command_type=command_type,
+        )
+        result = self._control.execute_step(command)
+
+        self._accept_return_navigation_result(
+            result,
+            command=command,
+            intended_position=self._current_pose.position,
+        )
+
     def _enter_mission_completed(self) -> None:
-        """Confirm base arrival before terminal completion."""
+        """Confirm the complete initial pose before completion."""
+
+        if self._current_pose != self._initial_pose:
+            raise InvariantViolationError(
+                "mission completion requires the configured "
+                "initial robot pose."
+            )
 
         mission = self._require_active_mission()
 

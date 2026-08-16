@@ -481,3 +481,81 @@ Batch C verification established that:
 - mypy passes across 48 source files;
 - the project-structure check confirms the platform-independent core boundary;
 - `pip check` reports no broken requirements.
+## 15. Batch D - Complete Acceptance Scenarios
+
+Status: COMPLETE
+
+Batch D verified the complete V1 software behavior through the public
+application boundary using the assembled deterministic headless application.
+
+`GridWorld` now supports immutable scenario-controlled transient obstacles.
+These obstacles represent unplanned obstructions that were not present in the
+validated configuration or the Brain's current planning map. They:
+
+- remain separate from the configured immutable `GridMap`;
+- appear in the immutable world returned by `read_world()`;
+- reject an attempted forward movement atomically with `BLOCKED`;
+- preserve the confirmed robot pose after rejection;
+- may be replaced deterministically by the scenario;
+- are cleared by an explicit simulation reset;
+- cannot overlap the robot, base, target, configured obstacles, or cells
+  outside the world.
+
+This scenario control remains a concrete `GridWorld` testing extension. It does
+not widen `SimulationPort` or expose platform-specific behavior to the Brain.
+
+The complete application scenarios verify that a real rejected movement causes
+the Brain to preserve its confirmed pose, add the newly observed obstruction to
+its immutable planning world, and request a versioned `DETOUR` plan. Both
+outbound and return replanning avoid the transient obstacle and complete
+without recording a rejected pose.
+
+The acceptance review exposed one additional lifecycle invariant. Returning to
+the base cell is insufficient when the robot heading differs from the
+configured initial heading. `DeterministicBrain` now performs controlled
+quarter-turn commands, at most one command per update cycle, until the complete
+confirmed pose matches the configured initial pose. Mission completion and a
+subsequent guarded reset therefore cannot silently change robot orientation.
+
+The legacy return test was strengthened to verify the final forward movement,
+the deterministic two-turn heading alignment, and equality with the complete
+configured initial pose.
+
+Six complete deterministic scenarios now verify:
+
+- SEQ-01 nominal mission execution;
+- SEQ-02 outbound obstruction, rejection, and detour replanning;
+- SEQ-02 exact reversed return path with an optional safe detour;
+- SEQ-03 hazard detection, priority emergency stop, and manual rearm rules;
+- two successful missions in one Python process without restarting;
+- identical complete replay for identical settings, epoch, and inputs.
+
+Together these scenarios cover AC-01 through AC-12. They verify inactive target
+stationarity, one mission per activation edge, collision-free navigation,
+authorized target adjacency, stationary collection, confirmed return to base,
+ordered immutable events, latched safety behavior, multi-mission isolation, and
+complete operation without physical hardware.
+
+Monitoring history persists across the guarded reset between missions while
+temporary Brain, Memory, Simulation, Clock, Perception, and Runner state is
+restored. Mission identifiers advance deterministically and event sequence
+numbers restart within each new mission.
+
+The acceptance package root now contains an explicit package marker so standard
+repository discovery includes every acceptance scenario rather than requiring
+a separate direct invocation.
+
+Batch D verification established that:
+
+- all 6 transient-obstacle unit tests pass;
+- all 6 complete software acceptance scenarios pass;
+- all 3 focused return-navigation regression tests pass;
+- 12 new Batch D tests are included in repository discovery;
+- the complete repository suite discovers and passes 368 tests;
+- all AC-01 through AC-12 are covered by executable scenarios;
+- SEQ-01, SEQ-02, and SEQ-03 are verified through the application boundary;
+- NFR-10 deterministic replay is verified with complete comparable traces;
+- Ruff passes for every affected implementation and test file;
+- mypy passes across 48 source files;
+- the project-structure check confirms the platform-independent core boundary;
+- `pip check` reports no broken requirements.

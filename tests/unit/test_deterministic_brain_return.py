@@ -242,7 +242,7 @@ class DeterministicBrainReturnTests(unittest.TestCase):
             ),
         )
 
-    def test_confirmed_base_arrival_enters_completed_state(
+    def test_confirmed_base_pose_alignment_enters_completed_state(
         self,
     ) -> None:
         brain, simulation, memory, monitoring, _ = (
@@ -259,12 +259,12 @@ class DeterministicBrainReturnTests(unittest.TestCase):
         status = brain.get_status()
 
         self.assertEqual(
-            status.robot_pose.position,
-            self.world.base_position,
+            status.robot_pose,
+            self.initial_pose,
         )
         self.assertEqual(
-            simulation.current_pose.position,
-            self.world.base_position,
+            simulation.current_pose,
+            self.initial_pose,
         )
         self.assertIsNone(status.active_plan)
         self.assertTrue(memory.return_poses)
@@ -282,8 +282,16 @@ class DeterministicBrainReturnTests(unittest.TestCase):
             memory.events[-1],
         )
         self.assertIs(
-            simulation.applied_commands[-1].command_type,
+            simulation.applied_commands[-3].command_type,
             CommandType.MOVE_FORWARD,
+        )
+        self.assertIs(
+            simulation.applied_commands[-2].command_type,
+            CommandType.TURN_RIGHT,
+        )
+        self.assertIs(
+            simulation.applied_commands[-1].command_type,
+            CommandType.TURN_RIGHT,
         )
 
 
