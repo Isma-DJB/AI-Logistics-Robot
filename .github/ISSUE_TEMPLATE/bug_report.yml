@@ -1,0 +1,121 @@
+name: Bug report
+description: Report a reproducible defect in AI-Logistics-Robot.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a defect.
+
+        Do not include credentials, personal data, security vulnerabilities,
+        or sensitive hardware information in this public form.
+
+  - type: input
+    id: version
+    attributes:
+      label: Project version or commit
+      description: Provide the implementation draft, release, or commit hash.
+      placeholder: "Example: I-0.6 or 17f071d"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Select the component most closely related to the defect.
+      options:
+        - Application and configuration
+        - Domain
+        - Ports
+        - Brain
+        - Planning
+        - Perception
+        - Control
+        - Memory
+        - Simulation adapter
+        - Monitoring
+        - Rendering
+        - Tests and tooling
+        - Documentation
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Describe the operating system, Python version, and setup.
+      placeholder: |
+        Operating system:
+        Python version:
+        Installation method:
+        Relevant optional dependencies:
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest deterministic sequence that reproduces the problem.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe the confirmed behavior that should occur.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe what occurred instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant logs or evidence
+      description: |
+        Paste only non-sensitive output, test failures, or screenshots.
+        Use code blocks where appropriate.
+      render: shell
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      options:
+        - Always
+        - Intermittently
+        - Once
+        - Not yet reproduced
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues for the same defect.
+          required: true
+        - label: I removed credentials, personal data, and sensitive information.
+          required: true
+        - label: I provided enough information to reproduce the defect.
+          required: true
+        - label: This report is not a private security vulnerability.
+          required: true
