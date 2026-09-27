@@ -24,8 +24,10 @@ def main() -> int:
         "replanning, latched safety, and identical replay."
     )
     print(
-        "Physical hardware diagnostics, calibration, and integration "
-        "remain deferred to I-0.9 and I-1.0."
+        "Physical hardware diagnostics and calibration are documented "
+        "through I-0.9. Final camera-based perception, microcontroller "
+        "communication, and end-to-end physical V1 integration remain "
+        "assigned to I-1.0."
     )
     return 0
 
