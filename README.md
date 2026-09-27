@@ -93,8 +93,8 @@ Pygame remains an optional simulation dependency. Importing and assembling the
 headless application does not import Pygame, and the platform-independent core
 contains no direct graphical or hardware dependency.
 
-Physical hardware diagnostics and calibration are now being documented in
-I-0.9. Final camera-based perception, microcontroller communication, and
+Physical hardware diagnostics and calibration are validated through I-0.9.
+Final camera-based perception, microcontroller communication, and
 end-to-end physical V1 integration remain assigned to I-1.0.
 
 ## Public status command

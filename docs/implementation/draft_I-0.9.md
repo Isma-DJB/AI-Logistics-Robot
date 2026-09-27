@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Validated - pull-request review pending |
+| Status | Validated |
 | Date | 2026-09-27 |
 | Repository branch | `implementation/i-0.9` |
 
@@ -268,15 +268,15 @@ The cropped serial-monitor evidence records the transition from
 - [x] Run all repository verification commands.
 - [x] Validate forward motor relaunch after repeated reverse and turning manoeuvres.
 - [x] Run two consecutive final controlled-light regression missions.
-- [ ] Review the I-0.9 pull request and approve it for merge.
+- [x] Review the I-0.9 pull request and approve it for merge.
 
-All technical I-0.9 exit conditions are complete. The physical prototype
-passed two consecutive controlled-light regression missions without motor
-blockage or manual wheel assistance.
+All I-0.9 exit conditions are complete. The physical prototype passed two
+consecutive controlled-light regression missions without motor blockage or
+manual wheel assistance. The pull request was reviewed with successful CodeQL
+checks and no merge conflict.
 
-The remaining unchecked item concerns repository review only and does not
-require further hardware modification. The overhead ESP32-CAM described in
-Section 3 remains the next physical integration milestone toward I-1.0.
+The overhead ESP32-CAM described in Section 3 remains the next physical
+integration milestone toward I-1.0.
 
 ## 11. Verification Record
 
