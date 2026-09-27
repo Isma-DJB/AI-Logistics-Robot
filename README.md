@@ -14,10 +14,10 @@ boundary, and representative movable obstacles.*
 
 ## Current status
 
-### I-0.9 physical hardware diagnostics - In progress
+### I-0.9 physical hardware diagnostics - Validated
 
-I-0.9 documents the first assembled physical prototype and the controlled
-transition from simulation to real hardware experiments.
+I-0.9 validates the first assembled physical prototype and the controlled
+transition from simulation to repeatable real-hardware experiments.
 
 The current prototype includes:
 
@@ -31,6 +31,11 @@ The current prototype includes:
 - reduced-speed obstacle and boundary recovery manoeuvres;
 - controlled light-triggered mission activation;
 - combined light and distance confirmation near the illuminated target.
+
+Two consecutive physical mission runs passed after the forward motor-restart
+correction. Mission activation, obstacle recovery, black-boundary recovery,
+motor relaunch, and illuminated-target arrival were validated without manual
+intervention.
 
 The repository now contains the
 [experimental Arduino firmware](firmware/arduino/i_0_9_hardware_prototype/i_0_9_hardware_prototype.ino)

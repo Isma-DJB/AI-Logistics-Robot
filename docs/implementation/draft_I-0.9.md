@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress |
+| Status | Validated - pull-request review pending |
 | Date | 2026-09-27 |
 | Repository branch | `implementation/i-0.9` |
 
@@ -215,8 +215,7 @@ and the test surface.
 ![Physical 2 m by 2 m test grid with robot, target lamp, and movable obstacles](../assets/i-0.9/images/grid-overview.jpg)
 
 The experimental grid uses a thick black external boundary, thin internal
-visual reference lines, movable obstacles, and a continuously illuminated
-target.
+visual reference lines, movable obstacles, and a target that remains illuminated throughout an active mission.
 
 ### 9.2 Robot Assembly
 
@@ -267,12 +266,17 @@ The cropped serial-monitor evidence records the transition from
 - [x] Record the wiring, settings, limitations, and visual evidence.
 - [x] Recompile and upload the repository copy of the firmware.
 - [x] Run all repository verification commands.
-- [ ] Run one final controlled-light regression mission.
-- [ ] Review and merge the I-0.9 pull request.
+- [x] Validate forward motor relaunch after repeated reverse and turning manoeuvres.
+- [x] Run two consecutive final controlled-light regression missions.
+- [ ] Review the I-0.9 pull request and approve it for merge.
 
-I-0.9 remains in progress until the unchecked verification items are completed.
-The overhead ESP32-CAM described in Section 3 is the next physical integration
-milestone toward I-1.0; it is not an I-0.9 completion requirement.
+All technical I-0.9 exit conditions are complete. The physical prototype
+passed two consecutive controlled-light regression missions without motor
+blockage or manual wheel assistance.
+
+The remaining unchecked item concerns repository review only and does not
+require further hardware modification. The overhead ESP32-CAM described in
+Section 3 remains the next physical integration milestone toward I-1.0.
 
 ## 11. Verification Record
 
@@ -290,7 +294,32 @@ The repository and firmware were verified on 2026-09-27.
 | `python -m pip check` | Passed: no broken requirements |
 | `python -m build` | Passed: source archive and wheel created |
 | `python -m ai_logistics_robot` | Passed with updated I-0.8/I-0.9/I-1.0 status |
+| Repeated right-motor forward relaunch | Passed without manual assistance |
+| Final controlled-light regression missions | Passed twice consecutively |
 
-The final controlled-light physical mission remains intentionally unchecked
-until it can be repeated under stable evening lighting. Daylight from the
-nearby window can influence the current single-photoresistor prototype.
+### 11.1 Validated Forward-Restart Assistance
+
+The final firmware introduces a short forward-restart sequence after reverse
+or turning manoeuvres:
+
+- neutral direction-change pause: 80 ms;
+- temporary forward PWM value: 140;
+- restart impulse duration: 100 ms;
+- automatic return to the calibrated normal forward speed.
+
+This correction was validated with repeated infrared reactions, black-boundary
+recovery, and two consecutive complete missions.
+
+## 12. Final Validation Decision
+
+Implementation Draft I-0.9 is technically validated as the physical hardware
+prototype baseline.
+
+The current motor speeds and manoeuvre durations are accepted as experimental
+hardware settings. Exact 20 cm cell traversal, repeatable 90-degree rotations,
+camera-based pose confirmation, and high-level path execution remain assigned
+to I-1.0.
+
+The next integration step is the fixed overhead ESP32-CAM installation. Its
+global observations will be translated through a physical perception adapter
+compatible with the validated I-0.8 software architecture.

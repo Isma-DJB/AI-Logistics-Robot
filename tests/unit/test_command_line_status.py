@@ -60,8 +60,8 @@ class CommandLineStatusTests(unittest.TestCase):
             status_text.lower(),
         )
         self.assertIn(
-            "documented through I-0.9",
-            status_text,
+            "validated through I-0.9",
+        status_text,
         )
         self.assertIn(
             "remain assigned to I-1.0",

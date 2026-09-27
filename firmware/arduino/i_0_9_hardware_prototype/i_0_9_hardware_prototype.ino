@@ -116,14 +116,42 @@ void calibrateLightBaseline() {
 // COMMANDES DES MOTEURS
 // ============================================================
 
-void moveForward(int speed) {
+bool forwardRestartRequired = true;
+
+const int FORWARD_RESTART_SPEED = 140;
+const int FORWARD_RESTART_MS = 100;
+const int FORWARD_DIRECTION_PAUSE_MS = 80;
+
+void writeForwardOutputs(int speed) {
   analogWrite(A_1B, 0);
   analogWrite(A_1A, int(speed * motorBOffset));
   analogWrite(B_1B, int(speed * motorAOffset * 1.00));
   analogWrite(B_1A, 0);
 }
 
+void moveForward(int speed) {
+  if (forwardRestartRequired) {
+    // Courte pause neutre après un recul ou un virage.
+    analogWrite(A_1B, 0);
+    analogWrite(A_1A, 0);
+    analogWrite(B_1B, 0);
+    analogWrite(B_1A, 0);
+    delay(FORWARD_DIRECTION_PAUSE_MS);
+
+    // Impulsion brève pour vaincre le blocage mécanique au redémarrage.
+    writeForwardOutputs(FORWARD_RESTART_SPEED);
+    delay(FORWARD_RESTART_MS);
+
+    forwardRestartRequired = false;
+  }
+
+  // Retour immédiat à la vitesse normale calibrée.
+  writeForwardOutputs(speed);
+}
+
 void moveBackward(int speed) {
+  forwardRestartRequired = true;
+
   analogWrite(A_1B, int(speed * motorAOffset));
   analogWrite(A_1A, 0);
   analogWrite(B_1B, 0);
@@ -131,6 +159,8 @@ void moveBackward(int speed) {
 }
 
 void backLeft(int speed) {
+  forwardRestartRequired = true;
+
   analogWrite(A_1B, speed);
   analogWrite(A_1A, 0);
   analogWrite(B_1B, 0);
@@ -138,6 +168,8 @@ void backLeft(int speed) {
 }
 
 void backRight(int speed) {
+  forwardRestartRequired = true;
+
   analogWrite(A_1B, 0);
   analogWrite(A_1A, 0);
   analogWrite(B_1B, 0);
@@ -161,7 +193,7 @@ void avoidBoundary() {
   lastBoundaryDetection = now;
 
   if (cornerDetected) {
-    Serial.println("=== COIN DETECTE : MANOEUVRE DOUCE ===");
+    Serial.println("=== COIN DETECTE : MANOEUVRE RENFORCEE ===");
   } else {
     Serial.println("=== LIGNE NOIRE : RETOUR VERS LA GRILLE ===");
   }
@@ -170,14 +202,12 @@ void avoidBoundary() {
   delay(100);
 
   if (cornerDetected) {
-    // Recul et virage modérés pour sortir du coin.
     moveBackward(140);
     delay(300);
 
     backLeft(120);
     delay(350);
   } else {
-    // Petite correction pour une ligne ordinaire.
     moveBackward(130);
     delay(250);
 

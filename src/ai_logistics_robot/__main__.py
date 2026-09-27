@@ -24,7 +24,7 @@ def main() -> int:
         "replanning, latched safety, and identical replay."
     )
     print(
-        "Physical hardware diagnostics and calibration are documented "
+        "Physical hardware diagnostics and calibration are validated "
         "through I-0.9. Final camera-based perception, microcontroller "
         "communication, and end-to-end physical V1 integration remain "
         "assigned to I-1.0."
