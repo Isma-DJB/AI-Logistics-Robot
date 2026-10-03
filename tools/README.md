@@ -65,3 +65,26 @@ The accepted 7 by 7 calibration produces:
 The calibration is valid only while the overhead camera remains in its fixed
 position. It must be repeated after any camera displacement, rotation, or
 change in framing.
+
+## Live Calibrated Grid Diagnostic
+
+`check_calibrated_grid.py` composes the ESP32-CAM capture adapter with the
+validated perspective calibration. It captures one live 800 by 600 JPEG frame,
+checks its source geometry, and writes a rectified 700 by 700 grid image.
+
+Example:
+
+```powershell
+python tools\check_calibrated_grid.py `
+    --url "http://192.168.1.109" `
+    --output "artifacts\i-1.0\esp32-grid-rectified.jpg"
+```
+
+The default calibration file is:
+
+```text
+configs/hardware/grid_calibration_7x7.yaml
+```
+
+A different calibration can be selected explicitly with `--calibration`.
+Diagnostic output under `artifacts` is intentionally ignored by Git.
