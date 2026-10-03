@@ -14,6 +14,34 @@ boundary, and representative movable obstacles.*
 
 ## Current status
 
+### I-1.0 physical vision and end-to-end integration - In progress
+
+I-1.0 is connecting the validated simulation architecture to the physical
+robot platform.
+
+The current I-1.0 implementation includes:
+
+- stable JPEG capture from a fixed overhead ESP32-CAM;
+- a calibrated 7 by 7 grid covering 140 cm by 140 cm;
+- perspective rectification from 800 by 600 to 700 by 700 pixels;
+- versioned YAML calibration and reviewable reference images;
+- live calibrated grid capture;
+- ArUco robot identification with marker `0` from `DICT_4X4_50`;
+- conversion of marker centers into logical grid positions;
+- conversion of marker rotation into cardinal robot headings;
+- explicit rejection of missing or ambiguous robot localization;
+- an annotated robot-pose diagnostic for offline and live frames.
+
+Synthetic localization verifies all four cardinal headings and the complete
+image-to-domain coordinate conversion. Physical marker validation remains
+pending until the printable 8 cm by 8 cm marker is mounted on the robot.
+
+Microcontroller communication, calibrated cell movement, physical perception,
+and complete end-to-end V1 mission execution remain in progress.
+
+The current implementation record is available in the
+[I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
+
 ### I-0.9 physical hardware diagnostics - Validated
 
 I-0.9 validates the first assembled physical prototype and the controlled
@@ -42,15 +70,14 @@ The repository now contains the
 and the
 [I-0.9 hardware record](docs/implementation/draft_I-0.9.md).
 
-The next physical integration milestone is an ESP32-CAM installed at a fixed
-elevated position and angled downward toward the complete grid. It will not be
-mounted on the robot. Its future role is to provide a stable global visual
-observation of the robot, grid, target areas, and obstacles.
+I-0.9 identified a fixed overhead ESP32-CAM as the next physical integration
+milestone. I-1.0 is now implementing that transition through global grid
+capture, perspective calibration, and robot localization.
 
-A future vision adapter will translate these observations into data accepted
-through the I-0.8 `Perception` boundary. The validated I-0.8 Brain, Planning,
-Control, and Memory components will remain responsible for high-level mission
-decisions.
+The developing I-1.0 perception layer will translate physical observations
+through the existing I-0.8 `Perception` boundary. The validated I-0.8 Brain,
+Planning, Control, and Memory components remain responsible for high-level
+mission decisions.
 
 ### I-0.8 validated software baseline
 
