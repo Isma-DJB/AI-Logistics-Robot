@@ -108,6 +108,12 @@ class ArucoRobotDetector:
         self._detector = cv2.aruco.ArucoDetector(dictionary)
 
     @property
+    def calibration(self) -> GridCalibration:
+        """Return the grid calibration used for localization."""
+
+        return self._calibration
+
+    @property
     def marker_id(self) -> int:
         """Return the configured robot marker identifier."""
 
