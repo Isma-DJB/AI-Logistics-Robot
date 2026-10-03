@@ -1,0 +1,28 @@
+schema_version: 1
+reference_image: docs/assets/i-1.0/images/grid-reference-7x7-svga.jpg
+source_image:
+  width: 800
+  height: 600
+grid:
+  columns: 7
+  rows: 7
+  cell_size_cm: 20.0
+  physical_width_cm: 140.0
+  physical_height_cm: 140.0
+source_points:
+  top_left:
+  - 106.0
+  - 1.0
+  top_right:
+  - 597.0
+  - 2.0
+  bottom_right:
+  - 588.0
+  - 471.0
+  bottom_left:
+  - 122.0
+  - 480.0
+rectified_image:
+  width: 700
+  height: 700
+  pixels_per_cell: 100

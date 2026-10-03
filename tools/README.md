@@ -1,7 +1,8 @@
-# Diagnostic Tools
+# Diagnostic and Calibration Tools
 
-Hardware diagnostics are explicit commands. They perform no network or physical
-action unless the user provides the required connection parameters.
+Hardware diagnostics and calibration operations are exposed as explicit
+commands. Network access, camera capture, graphical interaction, and generated
+files occur only when the corresponding command is intentionally executed.
 
 ## ESP32-CAM Still-Image Diagnostic
 
@@ -14,3 +15,53 @@ Example:
 python tools\check_esp32_cam.py `
     --url "http://192.168.1.109" `
     --output "artifacts\i-1.0\esp32-camera-check.jpg"
+```
+
+The diagnostic returns a nonzero exit code when the camera cannot be reached,
+the response is not a valid JPEG frame, or the output cannot be written.
+
+## Grid Perspective Calibration
+
+The calibration tool requires the optional vision dependencies:
+
+```powershell
+python -m pip install -e ".[vision]"
+```
+
+`calibrate_grid.py` opens the stored ESP32-CAM reference image and collects the
+four inner corners of the black operational boundary in this order:
+
+1. top-left;
+2. top-right;
+3. bottom-right;
+4. bottom-left.
+
+Run the default I-1.0 calibration with:
+
+```powershell
+python tools\calibrate_grid.py
+```
+
+Selection controls:
+
+- left click: select the next corner;
+- right click or `R`: clear the current selection;
+- `Enter`: validate four selected corners;
+- `Esc`: cancel without writing calibration files.
+
+Review controls:
+
+- `Enter` or `S`: save the accepted calibration;
+- `R`: return to corner selection;
+- `Esc`: cancel without saving.
+
+The accepted 7 by 7 calibration produces:
+
+- `configs/hardware/grid_calibration_7x7.yaml`;
+- `docs/assets/i-1.0/images/grid-reference-7x7-rectified.jpg`;
+- a 700 by 700 pixel rectified image;
+- 100 rectified pixels per 20 cm physical grid cell.
+
+The calibration is valid only while the overhead camera remains in its fixed
+position. It must be repeated after any camera displacement, rotation, or
+change in framing.
