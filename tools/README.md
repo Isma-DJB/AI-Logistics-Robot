@@ -88,3 +88,34 @@ configs/hardware/grid_calibration_7x7.yaml
 
 A different calibration can be selected explicitly with `--calibration`.
 Diagnostic output under `artifacts` is intentionally ignored by Git.
+
+## ArUco Robot-Pose Diagnostic
+
+`check_robot_pose.py` detects the configured robot marker in either an existing
+rectified image or a newly captured ESP32-CAM frame. It converts the marker
+center and orientation into the existing platform-independent `RobotPose`
+domain model.
+
+The validated V1 robot marker uses:
+
+- OpenCV dictionary `DICT_4X4_50`;
+- marker identifier `0`;
+- an 8 cm by 8 cm printed image, including its white quiet-zone margin;
+- the marker image's top edge pointing toward the front of the robot.
+
+The printable marker is stored at
+`docs/assets/i-1.0/images/robot-marker-aruco-id-0.png`.
+
+The rectified-grid coordinate convention is:
+
+- the bottom-left cell is `(0, 0)`;
+- `x` increases toward the right;
+- `y` increases toward the top;
+- the image top corresponds to `NORTH`.
+
+Offline diagnostic example:
+
+```powershell
+python tools\check_robot_pose.py `
+    --input "artifacts\i-1.0\rectified-grid.png" `
+    --output "artifacts\i-1.0\robot-pose-annotated.png"
