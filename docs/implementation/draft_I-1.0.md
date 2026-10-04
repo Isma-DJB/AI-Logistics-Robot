@@ -201,6 +201,12 @@ mounted, and observed from several real grid cells.
 | `804dc1e` | Overhead grid perspective calibration |
 | `ca81693` | Live calibrated grid capture |
 | `64bd12a` | ArUco robot localization |
+| `b565fda` | Physical grid `PerceptionPort` adapter |
+
+The Batch B software foundation now composes calibrated camera capture, ArUco
+localization, deterministic timestamping, and confirmed external state into
+immutable `PerceptionSnapshot` values. Missing or ambiguous localization
+remains an explicit failure and never produces a fabricated robot pose.
 
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
 remain optional vision dependencies rather than mandatory simulation
@@ -222,11 +228,12 @@ The repository and camera pipeline were verified on 2026-10-03.
 | Logical cell conversion | Passed |
 | Missing and duplicate marker rejection | Passed |
 | `python tools/check_project_structure.py` | Passed |
-| Complete automated test suite | Passed: 406 tests |
+| Complete automated test suite | Passed: 413 tests |
 | `python -m ruff check .` | Passed |
-| `python -m mypy src` | Passed: 52 source files |
+| `python -m mypy src` | Passed: 53 source files |
 | `python -m pip check` | Passed: no broken requirements |
 | `python -m build` | Passed: source archive and wheel created |
+| Physical `PerceptionPort` snapshot composition | Passed |
 
 The physical ArUco marker test is intentionally not marked as complete.
 Software validation used generated synthetic frames while the printed marker
@@ -246,11 +253,15 @@ was unavailable.
 
 ### Batch B - Physical Perception Adapter
 
-- combine calibrated camera capture and robot localization;
-- produce the existing immutable `PerceptionSnapshot`;
-- integrate target, obstacle, and hazard observations;
-- provide explicit failures when localization is unavailable;
-- satisfy the existing `PerceptionPort`.
+- [x] combine calibrated camera capture and robot localization;
+- [x] produce the existing immutable `PerceptionSnapshot`;
+- [ ] integrate physical target, obstacle, and hazard sources;
+- [x] provide explicit failures when localization is unavailable;
+- [x] satisfy the existing `PerceptionPort`.
+
+The software foundation is complete. Target, obstacle, and hazard values
+currently use explicit safe state updates until their physical sources are
+connected through later vision and microcontroller batches.
 
 ### Batch C - Microcontroller Communication
 
@@ -305,7 +316,7 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Validate synthetic cell and heading localization.
 - [ ] Print and mount the 8 cm by 8 cm robot marker.
 - [ ] Validate real marker detection across the physical grid.
-- [ ] Implement the physical `PerceptionPort` adapter.
+- [x] Implement the physical `PerceptionPort` adapter.
 - [ ] Implement explicit host-to-Arduino communication.
 - [ ] Calibrate repeatable 20 cm movements.
 - [ ] Calibrate repeatable 90-degree rotations.

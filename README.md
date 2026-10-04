@@ -31,13 +31,16 @@ The current I-1.0 implementation includes:
 - conversion of marker rotation into cardinal robot headings;
 - explicit rejection of missing or ambiguous robot localization;
 - an annotated robot-pose diagnostic for offline and live frames.
+- a physical `PerceptionPort` adapter producing immutable timestamped snapshots;
 
 Synthetic localization verifies all four cardinal headings and the complete
 image-to-domain coordinate conversion. Physical marker validation remains
 pending until the printable 8 cm by 8 cm marker is mounted on the robot.
 
-Microcontroller communication, calibrated cell movement, physical perception,
-and complete end-to-end V1 mission execution remain in progress.
+The physical `PerceptionPort` software boundary is now implemented and
+validated with synthetic frames. Physical target, obstacle, and hazard sources,
+microcontroller communication, calibrated cell movement, and complete
+end-to-end V1 mission execution remain in progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
