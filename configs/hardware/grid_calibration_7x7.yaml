@@ -11,17 +11,17 @@ grid:
   physical_height_cm: 140.0
 source_points:
   top_left:
-  - 106.0
-  - 1.0
+  - 158.0
+  - 8.0
   top_right:
-  - 597.0
-  - 2.0
+  - 648.0
+  - 14.0
   bottom_right:
-  - 588.0
-  - 471.0
+  - 627.0
+  - 496.0
   bottom_left:
-  - 122.0
-  - 480.0
+  - 162.0
+  - 487.0
 rectified_image:
   width: 700
   height: 700
