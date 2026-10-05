@@ -25,6 +25,10 @@ vision = [
     "opencv-python>=4.14,<5",
 ]
 
+hardware = [
+    "pyserial>=3.5,<4",
+]
+
 dev = [
     "build>=1.2,<2",
     "mypy>=1.14,<2",
