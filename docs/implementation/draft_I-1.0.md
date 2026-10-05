@@ -190,8 +190,28 @@ Synthetic tests validate all four headings, opposite image and domain
 y-directions, corner cells, invalid identifiers, missing markers, and duplicate
 markers.
 
-Physical overhead detection remains pending until the marker can be printed,
-mounted, and observed from several real grid cells.
+The printed marker was mounted flat on the robot roof and physically validated
+on 2026-10-05. Live overhead localization correctly identified all four
+cardinal headings at logical position `(3, 3)` and correctly classified the
+four operational corner cells `(0, 0)`, `(6, 0)`, `(6, 6)`, and `(0, 6)`.
+
+The perspective calibration describes the floor plane while the marker is
+elevated on the robot roof. A small expected parallax therefore appears near
+the outer grid boundaries. Keeping the robot and marker toward the center of
+each cell preserved complete marker visibility and produced the correct
+logical pose. One initial detection miss near the upper boundary was resolved
+by moving the robot inward within the same cell; no calibration change was
+required.
+
+### 7.1 Physical Localization Evidence
+
+| Grid center | Bottom-left corner | Bottom-right corner |
+|---|---|---|
+| ![Physical ArUco localization at grid center](../assets/i-1.0/images/robot-pose-physical-center-north.png) | ![Physical ArUco localization at bottom-left corner](../assets/i-1.0/images/robot-pose-physical-bottom-left.png) | ![Physical ArUco localization at bottom-right corner](../assets/i-1.0/images/robot-pose-physical-bottom-right.png) |
+
+| Top-left corner | Top-right corner |
+|---|---|
+| ![Physical ArUco localization at top-left corner](../assets/i-1.0/images/robot-pose-physical-top-left.png) | ![Physical ArUco localization at top-right corner](../assets/i-1.0/images/robot-pose-physical-top-right.png) |
 
 ## 8. Completed I-1.0 Batches
 
@@ -202,6 +222,7 @@ mounted, and observed from several real grid cells.
 | `ca81693` | Live calibrated grid capture |
 | `64bd12a` | ArUco robot localization |
 | `b565fda` | Physical grid `PerceptionPort` adapter |
+| `17fbf5c` | Physical ArUco localization across the operational grid |
 
 The Batch B software foundation now composes calibrated camera capture, ArUco
 localization, deterministic timestamping, and confirmed external state into
@@ -214,7 +235,7 @@ dependencies.
 
 ## 9. Current Verification Record
 
-The repository and camera pipeline were verified on 2026-10-03.
+The repository and camera pipeline were verified on 2026-10-05.
 
 | Verification | Result |
 |---|---|
@@ -234,22 +255,30 @@ The repository and camera pipeline were verified on 2026-10-03.
 | `python -m pip check` | Passed: no broken requirements |
 | `python -m build` | Passed: source archive and wheel created |
 | Physical `PerceptionPort` snapshot composition | Passed |
+| Physical ArUco marker installation | Passed |
+| Physical four-heading validation at `(3, 3)` | Passed |
+| Physical corner-cell localization | Passed: `(0, 0)`, `(6, 0)`, `(6, 6)`, and `(0, 6)` |
 
-The physical ArUco marker test is intentionally not marked as complete.
-Software validation used generated synthetic frames while the printed marker
-was unavailable.
+Physical ArUco validation is complete. The mounted marker was detected in all
+four cardinal orientations at the grid center and in all four operational
+corner cells. The small boundary parallax caused by marker elevation remains
+compatible with cell-level navigation because physical commands will target
+cell centers.
 
 ## 10. Planned Integration Batches
 
 ### Batch A - Physical Marker Validation
 
-- print the marker at exactly 8 cm by 8 cm;
-- preserve its white quiet-zone margin;
-- mount it flat on the robot roof;
-- align its top edge with the robot front;
-- confirm detection in several cells;
-- confirm all four cardinal orientations;
-- verify detection near the operational grid boundaries.
+- [x] print the marker at exactly 8 cm by 8 cm;
+- [x] preserve its white quiet-zone margin;
+- [x] mount it flat on the robot roof;
+- [x] align its top edge with the robot front;
+- [x] confirm detection in several cells;
+- [x] confirm all four cardinal orientations;
+- [x] verify detection near the operational grid boundaries.
+
+Batch A is complete. Physical localization passed at the grid center and at all
+four operational corner cells.
 
 ### Batch B - Physical Perception Adapter
 
@@ -293,8 +322,10 @@ connected through later vision and microcontroller batches.
 
 The current I-1.0 implementation has these explicit limitations:
 
-- the printed ArUco marker has not yet been physically validated;
-- the camera calibration must be reviewed after physical camera movement;
+- marker elevation produces small expected parallax near the outer boundaries,
+  so planned physical motion must target cell centers;
+- camera calibration must be revalidated after camera or powerbank removal,
+  reinstallation, or physical movement;
 - the camera IP address can change through DHCP;
 - the powerbank must be checked and recharged between experiments;
 - global obstacle and target detection are not yet implemented;
@@ -314,8 +345,8 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Define the robot ArUco dictionary and identifier.
 - [x] Store the printable robot marker in the repository.
 - [x] Validate synthetic cell and heading localization.
-- [ ] Print and mount the 8 cm by 8 cm robot marker.
-- [ ] Validate real marker detection across the physical grid.
+- [x] Print and mount the 8 cm by 8 cm robot marker.
+- [x] Validate real marker detection across the physical grid.
 - [x] Implement the physical `PerceptionPort` adapter.
 - [ ] Implement explicit host-to-Arduino communication.
 - [ ] Calibrate repeatable 20 cm movements.

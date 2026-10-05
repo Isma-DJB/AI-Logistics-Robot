@@ -30,12 +30,17 @@ The current I-1.0 implementation includes:
 - conversion of marker centers into logical grid positions;
 - conversion of marker rotation into cardinal robot headings;
 - explicit rejection of missing or ambiguous robot localization;
-- an annotated robot-pose diagnostic for offline and live frames.
-- a physical `PerceptionPort` adapter producing immutable timestamped snapshots;
+- an annotated robot-pose diagnostic for offline and live frames;
+- a physical `PerceptionPort` adapter producing immutable timestamped snapshots.
 
 Synthetic localization verifies all four cardinal headings and the complete
-image-to-domain coordinate conversion. Physical marker validation remains
-pending until the printable 8 cm by 8 cm marker is mounted on the robot.
+image-to-domain coordinate conversion. The printed 8 cm by 8 cm marker is now
+physically validated at the grid center in all four orientations and across
+all four operational corner cells.
+
+A small expected parallax remains near the outer boundaries because the marker
+is elevated above the calibrated floor plane. Physical navigation will
+therefore target cell centers.
 
 The physical `PerceptionPort` software boundary is now implemented and
 validated with synthetic frames. Physical target, obstacle, and hazard sources,
