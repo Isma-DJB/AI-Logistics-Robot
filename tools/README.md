@@ -119,3 +119,43 @@ Offline diagnostic example:
 python tools\check_robot_pose.py `
     --input "artifacts\i-1.0\rectified-grid.png" `
     --output "artifacts\i-1.0\robot-pose-annotated.png"
+```
+
+## Arduino Serial Diagnostic
+
+The Arduino serial diagnostic requires the optional hardware dependency:
+
+```powershell
+python -m pip install -e ".[hardware]"
+```
+
+`check_arduino_serial.py` opens the supervised Arduino connection, verifies
+liveness through `PING/PONG`, and reads the current controller and safety
+states.
+
+It does not wait for the boot-only `READY` announcement. This allows the
+diagnostic to connect safely when the Arduino was already running before the
+host opened the serial port.
+
+Run the validated UNO R4 Minima diagnostic with:
+
+```powershell
+python tools\check_arduino_serial.py `
+    --port "COM3" `
+    --timeout 5
+```
+
+The Arduino IDE Serial Monitor must be closed before running the command because
+only one process can own the serial port.
+
+The diagnostic is intentionally read-only:
+
+- it does not send `REARM`;
+- it does not send any motion command;
+- it does not change the controller safety state;
+- it reports a nonzero exit code after a connection, timeout, protocol, or
+  session failure.
+
+The validated I-1.0 safe-handshake firmware starts in
+`ESTOPPED/LATCHED`, keeps every motor output at zero, and rejects all `CMD`
+requests until motion execution is implemented and physically calibrated.
