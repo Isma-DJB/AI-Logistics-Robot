@@ -223,19 +223,35 @@ required.
 | `64bd12a` | ArUco robot localization |
 | `b565fda` | Physical grid `PerceptionPort` adapter |
 | `17fbf5c` | Physical ArUco localization across the operational grid |
+| `be37788` | Versioned `ALR|1` Arduino serial protocol |
+| `5e866ea` | Safe Arduino serial transport |
+| `967d95c` | Optional PySerial connection |
+| `b016fae` | Sequenced supervised Arduino serial client |
+| `e989267` | Safe supervised Arduino handshake firmware |
+| `628733e` | Read-only physical Arduino serial diagnostic |
 
-The Batch B software foundation now composes calibrated camera capture, ArUco
+The Batch B software foundation composes calibrated camera capture, ArUco
 localization, deterministic timestamping, and confirmed external state into
 immutable `PerceptionSnapshot` values. Missing or ambiguous localization
 remains an explicit failure and never produces a fabricated robot pose.
 
+The Batch C communication foundation now provides a versioned ASCII protocol,
+validated request and response objects, a safe serial transport, an optional
+PySerial connection, sequenced host exchanges, a separate I-1.0 firmware, and
+a reproducible physical diagnostic.
+
+The current firmware intentionally keeps every motor output at zero and rejects
+all `CMD` requests. Physical movement, `ACK/DONE` execution confirmation,
+sensor telemetry, and communication-loss handling during motion remain pending.
+
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
-remain optional vision dependencies rather than mandatory simulation
-dependencies.
+remain optional vision dependencies, and PySerial remains an optional hardware
+dependency.
 
 ## 9. Current Verification Record
 
-The repository and camera pipeline were verified on 2026-10-05.
+The current repository verification was refreshed on 2026-10-08. The recorded
+physical camera and Arduino validations were performed on 2026-10-05.
 
 | Verification | Result |
 |---|---|
@@ -248,22 +264,43 @@ The repository and camera pipeline were verified on 2026-10-05.
 | Four cardinal marker orientations | Passed |
 | Logical cell conversion | Passed |
 | Missing and duplicate marker rejection | Passed |
-| `python tools/check_project_structure.py` | Passed |
-| Complete automated test suite | Passed: 413 tests |
-| `python -m ruff check .` | Passed |
-| `python -m mypy src` | Passed: 53 source files |
-| `python -m pip check` | Passed: no broken requirements |
-| `python -m build` | Passed: source archive and wheel created |
 | Physical `PerceptionPort` snapshot composition | Passed |
 | Physical ArUco marker installation | Passed |
 | Physical four-heading validation at `(3, 3)` | Passed |
 | Physical corner-cell localization | Passed: `(0, 0)`, `(6, 0)`, `(6, 6)`, and `(0, 6)` |
+| Versioned `ALR|1` protocol encoding and decoding | Passed |
+| Serial transport connection and timeout handling | Passed |
+| PySerial `loop://` integration | Passed |
+| UNO R4 Minima safe firmware compilation and upload | Passed |
+| Boot `READY` announcement | Passed |
+| Manual `PING`, `STATUS`, `REARM`, and `ESTOP` exchanges | Passed |
+| Valid `CMD|MOVE_FORWARD` rejection | Passed: `BAD_COMMAND`, no wheel movement |
+| Live Python serial diagnostic on COM3 at 115200 baud | Passed |
+| Safe boot and final controller state | Passed: `ESTOPPED/LATCHED` |
+| Physical motor immobility throughout handshake validation | Passed |
+| `python tools/check_project_structure.py` | Passed |
+| Complete automated test suite | Passed: 479 tests |
+| `python -m ruff check .` | Passed |
+| `python -m mypy src` | Passed: 57 source files |
+| `python -m pip check` | Passed: no broken requirements |
+| `python -m build` | Passed: source archive and wheel created |
 
 Physical ArUco validation is complete. The mounted marker was detected in all
 four cardinal orientations at the grid center and in all four operational
 corner cells. The small boundary parallax caused by marker elevation remains
 compatible with cell-level navigation because physical commands will target
 cell centers.
+
+The safe serial foundation is also physically validated. The I-1.0 firmware
+boots with all motor outputs stopped and the safety latch active. Manual and
+Python exchanges confirmed liveness, status reporting, explicit rearm, and
+emergency-stop transitions. The boot-only `READY` announcement is not required
+for reconnecting to an already running controller; active diagnostics
+synchronize through `PING/PONG`.
+
+Supervised movement remains intentionally disabled. No physical motion command
+will be accepted until bounded execution, acknowledgement, local safety,
+communication-loss behaviour, and overhead-pose confirmation are implemented.
 
 ## 10. Planned Integration Batches
 
@@ -294,11 +331,27 @@ connected through later vision and microcontroller batches.
 
 ### Batch C - Microcontroller Communication
 
-- define a versioned host-to-Arduino protocol;
-- transmit explicit movement and stop commands;
-- receive command acknowledgements and sensor telemetry;
-- apply timeouts and safe communication-loss behaviour;
-- preserve immediate local safety reactions.
+- [x] define the versioned `ALR|1` host-to-Arduino protocol;
+- [x] implement validated request and response encoding;
+- [x] implement safe serial transport and explicit timeouts;
+- [x] provide the optional PySerial connection;
+- [x] implement sequenced host exchanges;
+- [x] upload a separate safe I-1.0 supervised firmware;
+- [x] validate `PING`, `STATUS`, `REARM`, and `ESTOP` on COM3;
+- [x] keep every motor output stopped during handshake validation;
+- [ ] transmit explicit movement and controlled `STOP` commands;
+- [ ] return matching `ACK` and terminal `DONE` responses;
+- [ ] receive physical sensor telemetry;
+- [ ] stop safely after communication loss during motion;
+- [ ] preserve immediate local sensor safety reactions during execution.
+
+The safe handshake foundation is complete and physically validated. The
+controller starts in `ESTOPPED/LATCHED`, accepts explicit safety-state
+transitions, and remains stationary.
+
+Batch C remains in progress because motion execution, completion
+acknowledgements, telemetry, the active communication watchdog, and local
+sensor intervention are not yet connected.
 
 ### Batch D - Cell Motion Calibration
 
@@ -329,10 +382,16 @@ The current I-1.0 implementation has these explicit limitations:
 - the camera IP address can change through DHCP;
 - the powerbank must be checked and recharged between experiments;
 - global obstacle and target detection are not yet implemented;
-- Arduino communication is not yet connected to the I-0.8 application;
+- the safe serial foundation is physically connected, but movement execution
+  is not yet connected to the I-0.8 application;
+- the I-1.0 supervised firmware intentionally rejects every `CMD` request;
+- `ACK/DONE` execution confirmation and sensor telemetry remain unavailable;
+- communication-loss handling has not yet been exercised during motor motion;
+- immediate local sensor reactions are not yet integrated into supervised
+  execution;
 - exact 20 cm movements and 90-degree rotations remain uncalibrated;
-- the current Arduino firmware still contains autonomous experimental
-  behaviours inherited from I-0.9;
+- the validated I-0.9 autonomous firmware remains preserved as an experimental
+  baseline and is not modified by I-1.0;
 - end-to-end planned physical path execution is not yet available.
 
 ## 12. I-1.0 Exit Conditions
@@ -348,7 +407,9 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Print and mount the 8 cm by 8 cm robot marker.
 - [x] Validate real marker detection across the physical grid.
 - [x] Implement the physical `PerceptionPort` adapter.
-- [ ] Implement explicit host-to-Arduino communication.
+- [x] Implement and physically validate the safe Arduino serial handshake.
+- [ ] Implement explicit host-to-Arduino movement execution.
+- [ ] Validate `ACK/DONE`, telemetry, and communication-loss behaviour.
 - [ ] Calibrate repeatable 20 cm movements.
 - [ ] Calibrate repeatable 90-degree rotations.
 - [ ] Integrate physical target and obstacle observations.

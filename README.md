@@ -31,7 +31,10 @@ The current I-1.0 implementation includes:
 - conversion of marker rotation into cardinal robot headings;
 - explicit rejection of missing or ambiguous robot localization;
 - an annotated robot-pose diagnostic for offline and live frames;
-- a physical `PerceptionPort` adapter producing immutable timestamped snapshots.
+- a physical `PerceptionPort` adapter producing immutable timestamped snapshots;
+- a versioned `ALR|1` Arduino protocol and sequenced host client;
+- a separate supervised firmware that boots in `ESTOPPED/LATCHED`;
+- a read-only serial diagnostic physically validated on COM3.
 
 Synthetic localization verifies all four cardinal headings and the complete
 image-to-domain coordinate conversion. The printed 8 cm by 8 cm marker is now
@@ -42,10 +45,14 @@ A small expected parallax remains near the outer boundaries because the marker
 is elevated above the calibrated floor plane. Physical navigation will
 therefore target cell centers.
 
-The physical `PerceptionPort` software boundary is now implemented and
-validated with synthetic frames. Physical target, obstacle, and hazard sources,
-microcontroller communication, calibrated cell movement, and complete
-end-to-end V1 mission execution remain in progress.
+The physical `PerceptionPort` software boundary is implemented and validated
+with synthetic frames. The safe microcontroller handshake is also physically
+connected through COM3 and validated with `PING`, `STATUS`, `REARM`, and
+`ESTOP`, while every motor output remained stopped.
+
+Physical target, obstacle, and hazard sources, supervised motor execution,
+calibrated cell movement, and complete end-to-end V1 mission execution remain
+in progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
