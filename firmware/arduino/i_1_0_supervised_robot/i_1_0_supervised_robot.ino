@@ -8,7 +8,7 @@
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-safe-handshake";
+const char FIRMWARE_VERSION[] = "i-1.0-stop-only";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -61,6 +61,32 @@ void sendPong(unsigned long sequenceId) {
   Serial.print(PROTOCOL_VERSION);
   Serial.print("|PONG|");
   Serial.println(sequenceId);
+}
+
+void sendAcknowledgement(
+    unsigned long sequenceId,
+    const char* commandType
+) {
+  Serial.print(PROTOCOL_NAME);
+  Serial.print('|');
+  Serial.print(PROTOCOL_VERSION);
+  Serial.print("|ACK|");
+  Serial.print(sequenceId);
+  Serial.print('|');
+  Serial.println(commandType);
+}
+
+void sendCompletion(
+    unsigned long sequenceId,
+    const char* completionCode
+) {
+  Serial.print(PROTOCOL_NAME);
+  Serial.print('|');
+  Serial.print(PROTOCOL_VERSION);
+  Serial.print("|DONE|");
+  Serial.print(sequenceId);
+  Serial.print('|');
+  Serial.println(completionCode);
 }
 
 void sendStatus(unsigned long sequenceId) {
@@ -249,12 +275,25 @@ void handleRequest(char* line) {
       return;
     }
 
+    const char* commandType = tokens[4];
+
+    // STOP is always accepted, including while safety remains latched.
+    if (strcmp(commandType, "STOP") == 0) {
+      sendAcknowledgement(
+          sequenceId,
+          commandType
+      );
+      stopMotors();
+      sendCompletion(sequenceId, "OK");
+      return;
+    }
+
     if (safetyLatched) {
       sendError(sequenceId, "SAFETY_LATCHED");
       return;
     }
 
-    // Motion is intentionally unavailable in this first firmware.
+    // Movement remains intentionally unavailable.
     sendError(sequenceId, "BAD_COMMAND");
     return;
   }
