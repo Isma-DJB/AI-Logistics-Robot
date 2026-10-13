@@ -156,6 +156,7 @@ The diagnostic is intentionally read-only:
 - it reports a nonzero exit code after a connection, timeout, protocol, or
   session failure.
 
-The validated I-1.0 safe-handshake firmware starts in
-`ESTOPPED/LATCHED`, keeps every motor output at zero, and rejects all `CMD`
-requests until motion execution is implemented and physically calibrated.
+The validated I-1.0 stop-only firmware starts in `ESTOPPED/LATCHED` and
+keeps every motor output at zero. It accepts `CMD|STOP` in every safety state
+and reports `ACK` followed by `DONE|OK`. All movement commands remain rejected
+until bounded execution is implemented and physically calibrated.

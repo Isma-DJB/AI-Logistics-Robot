@@ -229,6 +229,7 @@ required.
 | `b016fae` | Sequenced supervised Arduino serial client |
 | `e989267` | Safe supervised Arduino handshake firmware |
 | `628733e` | Read-only physical Arduino serial diagnostic |
+| `69ff20f` | Physically validated supervised Arduino `STOP` execution |
 
 The Batch B software foundation composes calibrated camera capture, ArUco
 localization, deterministic timestamping, and confirmed external state into
@@ -240,9 +241,11 @@ validated request and response objects, a safe serial transport, an optional
 PySerial connection, sequenced host exchanges, a separate I-1.0 firmware, and
 a reproducible physical diagnostic.
 
-The current firmware intentionally keeps every motor output at zero and rejects
-all `CMD` requests. Physical movement, `ACK/DONE` execution confirmation,
-sensor telemetry, and communication-loss handling during motion remain pending.
+The current firmware accepts `CMD|STOP` in every safety state and returns
+matching `ACK` and `DONE|OK` responses while keeping every motor output at
+zero. All movement commands remain rejected. Movement execution and its
+completion confirmation, sensor telemetry, and communication-loss handling
+during motion remain pending.
 
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
 remain optional vision dependencies, and PySerial remains an optional hardware
@@ -250,8 +253,9 @@ dependency.
 
 ## 9. Current Verification Record
 
-The current repository verification was refreshed on 2026-10-08. The recorded
-physical camera and Arduino validations were performed on 2026-10-05.
+The current repository and Arduino serial verification were refreshed on
+2026-10-08. The recorded physical camera validation was performed on
+2026-10-05.
 
 | Verification | Result |
 |---|---|
@@ -274,10 +278,13 @@ physical camera and Arduino validations were performed on 2026-10-05.
 | UNO R4 Minima safe firmware compilation and upload | Passed |
 | Boot `READY` announcement | Passed |
 | Manual `PING`, `STATUS`, `REARM`, and `ESTOP` exchanges | Passed |
+| Supervised `CMD|STOP` while `LATCHED` | Passed: matching `ACK`, then `DONE|OK` |
+| Supervised `CMD|STOP` while `SAFE` | Passed: matching `ACK`, then `DONE|OK` |
+| Live Python `STOP` execution on COM3 | Passed: completion `OK` |
 | Valid `CMD|MOVE_FORWARD` rejection | Passed: `BAD_COMMAND`, no wheel movement |
 | Live Python serial diagnostic on COM3 at 115200 baud | Passed |
 | Safe boot and final controller state | Passed: `ESTOPPED/LATCHED` |
-| Physical motor immobility throughout handshake validation | Passed |
+| Physical motor immobility throughout serial and `STOP` validation | Passed |
 | `python tools/check_project_structure.py` | Passed |
 | Complete automated test suite | Passed: 479 tests |
 | `python -m ruff check .` | Passed |
@@ -291,16 +298,20 @@ corner cells. The small boundary parallax caused by marker elevation remains
 compatible with cell-level navigation because physical commands will target
 cell centers.
 
-The safe serial foundation is also physically validated. The I-1.0 firmware
-boots with all motor outputs stopped and the safety latch active. Manual and
-Python exchanges confirmed liveness, status reporting, explicit rearm, and
-emergency-stop transitions. The boot-only `READY` announcement is not required
-for reconnecting to an already running controller; active diagnostics
-synchronize through `PING/PONG`.
+The safe serial foundation and stop-only command are physically validated. The
+I-1.0 firmware boots with all motor outputs stopped and the safety latch active.
+Manual exchanges confirmed liveness, status reporting, explicit rearm,
+emergency-stop transitions, and supervised `STOP` execution in both
+`LATCHED` and `SAFE` states with matching `ACK/DONE` responses. The live Python
+client also completed `STOP` and confirmed the final `ESTOPPED/LATCHED` state.
+The boot-only `READY` announcement is not required when reconnecting to an
+already running controller; active diagnostics synchronize through
+`PING/PONG`.
 
-Supervised movement remains intentionally disabled. No physical motion command
-will be accepted until bounded execution, acknowledgement, local safety,
-communication-loss behaviour, and overhead-pose confirmation are implemented.
+Supervised movement remains intentionally disabled. No physical movement
+command will be accepted until bounded execution, movement-specific
+`ACK/DONE`, local safety, communication-loss behaviour, and overhead-pose
+confirmation are implemented.
 
 ## 10. Planned Integration Batches
 
@@ -339,19 +350,22 @@ connected through later vision and microcontroller batches.
 - [x] upload a separate safe I-1.0 supervised firmware;
 - [x] validate `PING`, `STATUS`, `REARM`, and `ESTOP` on COM3;
 - [x] keep every motor output stopped during handshake validation;
-- [ ] transmit explicit movement and controlled `STOP` commands;
-- [ ] return matching `ACK` and terminal `DONE` responses;
+- [x] transmit and physically validate controlled `STOP` commands;
+- [x] return matching `ACK` and terminal `DONE` responses for `STOP`;
+- [ ] transmit bounded movement commands;
+- [ ] return matching `ACK` and terminal `DONE` responses for movement;
 - [ ] receive physical sensor telemetry;
 - [ ] stop safely after communication loss during motion;
 - [ ] preserve immediate local sensor safety reactions during execution.
 
-The safe handshake foundation is complete and physically validated. The
-controller starts in `ESTOPPED/LATCHED`, accepts explicit safety-state
-transitions, and remains stationary.
+The safe communication foundation and controlled `STOP` path are complete and
+physically validated. The controller starts in `ESTOPPED/LATCHED`, accepts
+explicit safety-state transitions, executes `STOP` in every safety state,
+returns matching `ACK` and `DONE|OK` responses, and remains stationary.
 
-Batch C remains in progress because motion execution, completion
-acknowledgements, telemetry, the active communication watchdog, and local
-sensor intervention are not yet connected.
+Batch C remains in progress because bounded movement execution,
+movement-specific `ACK/DONE`, telemetry, the active communication watchdog,
+and local sensor intervention are not yet connected.
 
 ### Batch D - Cell Motion Calibration
 
@@ -384,8 +398,10 @@ The current I-1.0 implementation has these explicit limitations:
 - global obstacle and target detection are not yet implemented;
 - the safe serial foundation is physically connected, but movement execution
   is not yet connected to the I-0.8 application;
-- the I-1.0 supervised firmware intentionally rejects every `CMD` request;
-- `ACK/DONE` execution confirmation and sensor telemetry remain unavailable;
+- the I-1.0 supervised firmware accepts only `CMD|STOP`; every movement `CMD`
+  remains intentionally rejected;
+- `ACK/DONE` execution confirmation is available for `STOP` only; movement
+  completion confirmation and sensor telemetry remain unavailable;
 - communication-loss handling has not yet been exercised during motor motion;
 - immediate local sensor reactions are not yet integrated into supervised
   execution;
@@ -408,8 +424,9 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Validate real marker detection across the physical grid.
 - [x] Implement the physical `PerceptionPort` adapter.
 - [x] Implement and physically validate the safe Arduino serial handshake.
+- [x] Implement and physically validate supervised `STOP` execution.
 - [ ] Implement explicit host-to-Arduino movement execution.
-- [ ] Validate `ACK/DONE`, telemetry, and communication-loss behaviour.
+- [ ] Validate movement `ACK/DONE`, telemetry, and communication-loss behaviour.
 - [ ] Calibrate repeatable 20 cm movements.
 - [ ] Calibrate repeatable 90-degree rotations.
 - [ ] Integrate physical target and obstacle observations.
