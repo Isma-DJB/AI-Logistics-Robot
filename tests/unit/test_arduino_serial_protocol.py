@@ -15,6 +15,7 @@ from ai_logistics_robot.adapters.hardware.arduino_serial_protocol import (
     encode_motion_command,
     encode_ping,
     encode_rearm,
+    encode_sensor_request,
     encode_status_request,
     parse_arduino_response,
 )
@@ -208,6 +209,69 @@ class ArduinoSerialProtocolTests(unittest.TestCase):
                 ArduinoSafetyState.SAFE.value,
             ),
         )
+
+    def test_encodes_sensor_request(self) -> None:
+        self.assertEqual(
+            encode_sensor_request(sequence_id=14),
+            b"ALR|1|SENSORS|14\n",
+        )
+
+    def test_parses_sensor_responses(self) -> None:
+        cases = (
+            (
+                "ALR|1|SENSORS|15|1|0|1|237|612\n",
+                ("1", "0", "1", "237", "612"),
+            ),
+            (
+                "ALR|1|SENSORS|16|0|1|0|NONE|500\n",
+                ("0", "1", "0", "NONE", "500"),
+            ),
+        )
+
+        for line, expected_payload in cases:
+            with self.subTest(line=line):
+                response = parse_arduino_response(line)
+
+                self.assertEqual(
+                    response.response_type,
+                    ArduinoResponseType.SENSORS,
+                )
+                self.assertEqual(
+                    response.payload,
+                    expected_payload,
+                )
+
+    def test_rejects_invalid_sensor_payloads(self) -> None:
+        cases = (
+            (
+                "ALR|1|SENSORS|1|1|0|1|237",
+                "exactly five",
+            ),
+            (
+                "ALR|1|SENSORS|1|2|0|1|237|612",
+                "digital values",
+            ),
+            (
+                "ALR|1|SENSORS|1|1|0|1|-1|612",
+                "distance",
+            ),
+            (
+                "ALR|1|SENSORS|1|1|0|1|FAR|612",
+                "distance",
+            ),
+            (
+                "ALR|1|SENSORS|1|1|0|1|237|NONE",
+                "light value",
+            ),
+        )
+
+        for line, expected_message in cases:
+            with self.subTest(line=line):
+                with self.assertRaisesRegex(
+                    ArduinoSerialProtocolError,
+                    expected_message,
+                ):
+                    parse_arduino_response(line)
 
     def test_rejects_non_ascii_response(self) -> None:
         with self.assertRaisesRegex(

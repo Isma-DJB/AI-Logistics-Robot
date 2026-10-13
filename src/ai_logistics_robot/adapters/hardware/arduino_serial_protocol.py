@@ -24,6 +24,7 @@ class ArduinoRequestType(StrEnum):
     EMERGENCY_STOP = "ESTOP"
     REARM = "REARM"
     STATUS = "STATUS"
+    SENSORS = "SENSORS"
 
 
 @unique
@@ -36,6 +37,7 @@ class ArduinoResponseType(StrEnum):
     COMPLETED = "DONE"
     ERROR = "ERROR"
     STATUS = "STATUS"
+    SENSORS = "SENSORS"
 
 
 @unique
@@ -163,6 +165,11 @@ class ArduinoSerialResponse:
                 "STATUS safety state",
             )
 
+            return
+
+        if self.response_type is ArduinoResponseType.SENSORS:
+            _validate_sensor_payload(self.payload)
+
 
 def encode_motion_command(
     *,
@@ -215,6 +222,14 @@ def encode_status_request(*, sequence_id: int) -> bytes:
 
     return _encode_request(
         ArduinoRequestType.STATUS,
+        sequence_id,
+    )
+
+def encode_sensor_request(*, sequence_id: int) -> bytes:
+    """Encode one read-only physical-sensor snapshot request."""
+
+    return _encode_request(
+        ArduinoRequestType.SENSORS,
         sequence_id,
     )
 
@@ -411,3 +426,35 @@ def _require_enum_token(
         raise ArduinoSerialProtocolError(
             f"{field_name} is unsupported."
         ) from error
+
+
+def _validate_sensor_payload(
+    payload: tuple[str, ...],
+) -> None:
+    """Validate one raw physical-sensor snapshot payload."""
+
+    if len(payload) != 5:
+        raise ArduinoSerialProtocolError(
+            "SENSORS must contain exactly five sensor values."
+        )
+
+    for digital_value in payload[:3]:
+        if digital_value not in {"0", "1"}:
+            raise ArduinoSerialProtocolError(
+                "SENSORS digital values must be 0 or 1."
+            )
+
+    distance_value = payload[3]
+
+    if (
+        distance_value != "NONE"
+        and not distance_value.isdecimal()
+    ):
+        raise ArduinoSerialProtocolError(
+            "SENSORS distance must be NONE or a decimal integer."
+        )
+
+    if not payload[4].isdecimal():
+        raise ArduinoSerialProtocolError(
+            "SENSORS light value must be a decimal integer."
+        )
