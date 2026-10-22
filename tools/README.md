@@ -156,7 +156,14 @@ The diagnostic is intentionally read-only:
 - it reports a nonzero exit code after a connection, timeout, protocol, or
   session failure.
 
-The validated I-1.0 stop-only firmware starts in `ESTOPPED/LATCHED` and
-keeps every motor output at zero. It accepts `CMD|STOP` in every safety state
-and reports `ACK` followed by `DONE|OK`. All movement commands remain rejected
-until bounded execution is implemented and physically calibrated.
+The validated I-1.0 sensors-readonly firmware starts in
+`ESTOPPED/LATCHED` and keeps every motor output at zero. It accepts `CMD|STOP`
+in every safety state and reports `ACK` followed by `DONE|OK`.
+
+The read-only request `ALR|1|SENSORS|<sequence>` returns the raw left infrared,
+right infrared, boundary-line, ultrasonic-distance, and light values. A missing
+ultrasonic echo is represented by `NONE`. Sensor inspection is available while
+safety remains latched and never rearms or activates the motors.
+
+All movement commands remain rejected until bounded execution is implemented
+and physically calibrated.

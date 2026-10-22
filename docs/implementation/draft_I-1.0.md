@@ -230,6 +230,9 @@ required.
 | `e989267` | Safe supervised Arduino handshake firmware |
 | `628733e` | Read-only physical Arduino serial diagnostic |
 | `69ff20f` | Physically validated supervised Arduino `STOP` execution |
+| `1d7dc60` | Versioned Arduino sensor-snapshot protocol |
+| `05d3bbc` | Typed Python Arduino sensor snapshots |
+| `8a5726c` | Physically validated read-only Arduino sensor telemetry |
 
 The Batch B software foundation composes calibrated camera capture, ArUco
 localization, deterministic timestamping, and confirmed external state into
@@ -238,14 +241,19 @@ remains an explicit failure and never produces a fabricated robot pose.
 
 The Batch C communication foundation now provides a versioned ASCII protocol,
 validated request and response objects, a safe serial transport, an optional
-PySerial connection, sequenced host exchanges, a separate I-1.0 firmware, and
-a reproducible physical diagnostic.
+PySerial connection, sequenced host exchanges, a separate I-1.0 firmware,
+reproducible physical diagnostics, and typed read-only sensor snapshots.
 
-The current firmware accepts `CMD|STOP` in every safety state and returns
-matching `ACK` and `DONE|OK` responses while keeping every motor output at
-zero. All movement commands remain rejected. Movement execution and its
-completion confirmation, sensor telemetry, and communication-loss handling
-during motion remain pending.
+The current `i-1.0-sensors-readonly` firmware accepts `CMD|STOP` in every
+safety state and returns matching `ACK` and `DONE|OK` responses. It also
+exposes sequenced `SENSORS` snapshots containing both infrared values, the
+boundary-line value, ultrasonic distance in millimetres or `NONE`, and the raw
+light value. These operations remain available while safety is latched and
+keep every motor output at zero.
+
+All movement commands remain rejected. Bounded movement execution,
+movement-specific completion confirmation, active communication-loss handling,
+and local sensor intervention during motion remain pending.
 
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
 remain optional vision dependencies, and PySerial remains an optional hardware
@@ -253,8 +261,8 @@ dependency.
 
 ## 9. Current Verification Record
 
-The current repository and Arduino serial verification were refreshed on
-2026-10-08. The recorded physical camera validation was performed on
+The current repository and Arduino sensor-telemetry verification were refreshed
+on 2026-10-22. The recorded physical camera validation was performed on
 2026-10-05.
 
 | Verification | Result |
@@ -275,18 +283,25 @@ The current repository and Arduino serial verification were refreshed on
 | Versioned `ALR|1` protocol encoding and decoding | Passed |
 | Serial transport connection and timeout handling | Passed |
 | PySerial `loop://` integration | Passed |
-| UNO R4 Minima safe firmware compilation and upload | Passed |
+| UNO R4 Minima sensors-readonly firmware compilation and upload | Passed: 43880 bytes flash, 4052 bytes RAM |
 | Boot `READY` announcement | Passed |
 | Manual `PING`, `STATUS`, `REARM`, and `ESTOP` exchanges | Passed |
 | Supervised `CMD|STOP` while `LATCHED` | Passed: matching `ACK`, then `DONE|OK` |
 | Supervised `CMD|STOP` while `SAFE` | Passed: matching `ACK`, then `DONE|OK` |
 | Live Python `STOP` execution on COM3 | Passed: completion `OK` |
+| Read-only `SENSORS` protocol encoding and decoding | Passed |
+| Manual `SENSORS` request while `LATCHED` | Passed |
+| Physical left and right infrared telemetry | Passed |
+| Physical boundary-line telemetry | Passed: raw value changed from `0` to `1` |
+| Physical HC-SR04 telemetry | Passed: `196 mm` for a measured 20 cm target |
+| Physical photoresistor telemetry | Passed: ambient `314`, illuminated `901` |
+| Live typed Python `ArduinoSensorSnapshot` on COM3 | Passed |
 | Valid `CMD|MOVE_FORWARD` rejection | Passed: `BAD_COMMAND`, no wheel movement |
 | Live Python serial diagnostic on COM3 at 115200 baud | Passed |
 | Safe boot and final controller state | Passed: `ESTOPPED/LATCHED` |
-| Physical motor immobility throughout serial and `STOP` validation | Passed |
+| Physical motor immobility throughout serial, `STOP`, and sensor validation | Passed |
 | `python tools/check_project_structure.py` | Passed |
-| Complete automated test suite | Passed: 479 tests |
+| Complete automated test suite | Passed: 485 tests |
 | `python -m ruff check .` | Passed |
 | `python -m mypy src` | Passed: 57 source files |
 | `python -m pip check` | Passed: no broken requirements |
@@ -307,6 +322,21 @@ client also completed `STOP` and confirmed the final `ESTOPPED/LATCHED` state.
 The boot-only `READY` announcement is not required when reconnecting to an
 already running controller; active diagnostics synchronize through
 `PING/PONG`.
+
+Read-only sensor telemetry is also physically validated. Manual requests
+confirmed both infrared channels, black-boundary detection, an HC-SR04 reading
+of `196 mm` against a measured 20 cm target, and a photoresistor transition
+from `314` ambient to `901` illuminated. The live Python client decoded a
+sequenced `ArduinoSensorSnapshot` and then confirmed that the controller
+remained `ESTOPPED/LATCHED`. The wheels remained stationary throughout every
+sensor request.
+
+Future target arrival must fuse the overhead camera pose, a strong and stable
+light increase, and a short ultrasonic distance. The ultrasonic sensor must
+not be disabled near the lamp: its detection of the lamp support becomes an
+arrival confirmation only when the camera also places the robot in an
+authorized target-adjacent cell. Otherwise the detected object remains a
+normal obstacle.
 
 Supervised movement remains intentionally disabled. No physical movement
 command will be accepted until bounded execution, movement-specific
@@ -336,9 +366,13 @@ four operational corner cells.
 - [x] provide explicit failures when localization is unavailable;
 - [x] satisfy the existing `PerceptionPort`.
 
-The software foundation is complete. Target, obstacle, and hazard values
-currently use explicit safe state updates until their physical sources are
-connected through later vision and microcontroller batches.
+The software foundation is complete. Raw Arduino sensor telemetry is now
+available through typed host snapshots, but its conversion into target,
+obstacle, and hazard decisions remains pending.
+
+Target arrival will require agreement between the overhead camera pose, a
+strong and stable light increase, and a short ultrasonic distance. Ultrasonic
+protection remains active throughout the approach.
 
 ### Batch C - Microcontroller Communication
 
@@ -354,18 +388,21 @@ connected through later vision and microcontroller batches.
 - [x] return matching `ACK` and terminal `DONE` responses for `STOP`;
 - [ ] transmit bounded movement commands;
 - [ ] return matching `ACK` and terminal `DONE` responses for movement;
-- [ ] receive physical sensor telemetry;
+- [x] receive physical sensor telemetry;
+- [x] decode sequenced telemetry into typed host snapshots;
+- [x] validate all five physical sensor channels while safety remains latched;
 - [ ] stop safely after communication loss during motion;
 - [ ] preserve immediate local sensor safety reactions during execution.
 
-The safe communication foundation and controlled `STOP` path are complete and
-physically validated. The controller starts in `ESTOPPED/LATCHED`, accepts
-explicit safety-state transitions, executes `STOP` in every safety state,
-returns matching `ACK` and `DONE|OK` responses, and remains stationary.
+The safe communication foundation, controlled `STOP` path, and read-only
+sensor-telemetry path are complete and physically validated. The controller
+starts in `ESTOPPED/LATCHED`, accepts explicit safety-state transitions,
+executes `STOP` in every safety state, returns matching `ACK` and `DONE|OK`,
+and produces typed five-sensor snapshots without activating either motor.
 
 Batch C remains in progress because bounded movement execution,
-movement-specific `ACK/DONE`, telemetry, the active communication watchdog,
-and local sensor intervention are not yet connected.
+movement-specific `ACK/DONE`, the active communication watchdog, and immediate
+local sensor intervention during motion are not yet connected.
 
 ### Batch D - Cell Motion Calibration
 
@@ -398,10 +435,12 @@ The current I-1.0 implementation has these explicit limitations:
 - global obstacle and target detection are not yet implemented;
 - the safe serial foundation is physically connected, but movement execution
   is not yet connected to the I-0.8 application;
-- the I-1.0 supervised firmware accepts only `CMD|STOP`; every movement `CMD`
-  remains intentionally rejected;
+- the I-1.0 supervised firmware accepts `CMD|STOP` and read-only `SENSORS`;
+  every movement `CMD` remains intentionally rejected;
 - `ACK/DONE` execution confirmation is available for `STOP` only; movement
-  completion confirmation and sensor telemetry remain unavailable;
+  completion confirmation remains unavailable;
+- read-only sensor telemetry is physically validated but is not yet mapped
+  into `PerceptionSnapshot` target, obstacle, and hazard decisions;
 - communication-loss handling has not yet been exercised during motor motion;
 - immediate local sensor reactions are not yet integrated into supervised
   execution;
@@ -425,8 +464,9 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Implement the physical `PerceptionPort` adapter.
 - [x] Implement and physically validate the safe Arduino serial handshake.
 - [x] Implement and physically validate supervised `STOP` execution.
+- [x] Implement and physically validate read-only Arduino sensor telemetry.
 - [ ] Implement explicit host-to-Arduino movement execution.
-- [ ] Validate movement `ACK/DONE`, telemetry, and communication-loss behaviour.
+- [ ] Validate movement `ACK/DONE` and communication-loss behaviour.
 - [ ] Calibrate repeatable 20 cm movements.
 - [ ] Calibrate repeatable 90-degree rotations.
 - [ ] Integrate physical target and obstacle observations.

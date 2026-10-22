@@ -36,7 +36,9 @@ The current I-1.0 implementation includes:
 - a separate supervised firmware that boots in `ESTOPPED/LATCHED`;
 - supervised `STOP` execution with matching `ACK/DONE`, physically validated
   through both the serial monitor and the Python client;
-- a read-only serial diagnostic physically validated on COM3.
+- a read-only serial diagnostic physically validated on COM3;
+- read-only five-sensor telemetry and typed Python snapshots, physically
+  validated while the controller remained `ESTOPPED/LATCHED`.
 
 Synthetic localization verifies all four cardinal headings and the complete
 image-to-domain coordinate conversion. The printed 8 cm by 8 cm marker is now
@@ -54,9 +56,14 @@ connected through COM3 and validated with `PING`, `STATUS`, `REARM`, and
 and completed through matching `ACK` and `DONE|OK` responses from both the
 serial monitor and the Python client. Every motor output remained stopped.
 
-Physical target, obstacle, and hazard sources, supervised movement execution,
-calibrated cell movement, and complete end-to-end V1 mission execution remain
-in progress.
+The read-only `SENSORS` path was physically validated through both the Arduino
+Serial Monitor and the Python client. Both infrared obstacle sensors, the
+downward boundary sensor, the HC-SR04 distance sensor, and the photoresistor
+produced valid typed snapshots while every wheel remained stationary.
+
+Integration of physical sensor values into target, obstacle, and hazard
+decisions, supervised movement execution, calibrated cell movement, and
+complete end-to-end V1 mission execution remain in progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
