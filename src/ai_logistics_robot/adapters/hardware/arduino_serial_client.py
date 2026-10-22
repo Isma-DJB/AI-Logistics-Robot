@@ -14,6 +14,7 @@ from ai_logistics_robot.adapters.hardware.arduino_serial_protocol import (
     encode_motion_command,
     encode_ping,
     encode_rearm,
+    encode_sensor_request,
     encode_status_request,
 )
 from ai_logistics_robot.adapters.hardware.arduino_serial_transport import (
@@ -22,6 +23,8 @@ from ai_logistics_robot.adapters.hardware.arduino_serial_transport import (
 from ai_logistics_robot.domain.enums import CommandType
 from ai_logistics_robot.domain.errors import DomainValidationError
 
+_MAX_ULTRASONIC_DISTANCE_MM = 10_000
+_MAX_LIGHT_RAW = 1_023
 
 class ArduinoSerialSessionError(RuntimeError):
     """Report one invalid supervised serial exchange."""
@@ -68,6 +71,16 @@ class ArduinoControllerStatus:
     device_state: ArduinoDeviceState
     safety_state: ArduinoSafetyState
 
+@dataclass(frozen=True, slots=True)
+class ArduinoSensorSnapshot:
+    """One sequenced raw physical-sensor snapshot."""
+
+    sequence_id: int
+    left_ir_raw: int
+    right_ir_raw: int
+    line_raw: int
+    distance_mm: int | None
+    light_raw: int
 
 @dataclass(frozen=True, slots=True)
 class ArduinoCommandOutcome:
@@ -166,6 +179,21 @@ class ArduinoSerialClient:
             response_type=ArduinoResponseType.STATUS,
         )
         return _decode_status(response)
+
+    def request_sensors(self) -> ArduinoSensorSnapshot:
+        """Request and decode one raw physical-sensor snapshot."""
+
+        sequence_id = self._allocate_sequence_id()
+        self._transport.send(
+            encode_sensor_request(
+                sequence_id=sequence_id,
+            )
+        )
+        response = self._receive_expected(
+            sequence_id=sequence_id,
+            response_type=ArduinoResponseType.SENSORS,
+        )
+        return _decode_sensor_snapshot(response)
 
     def emergency_stop(self) -> ArduinoControllerStatus:
         """Request a latched emergency stop and decode status."""
@@ -340,6 +368,50 @@ def _decode_status(
         safety_state=ArduinoSafetyState(
             response.payload[1]
         ),
+    )
+
+def _decode_sensor_snapshot(
+    response: ArduinoSerialResponse,
+) -> ArduinoSensorSnapshot:
+    """Translate one validated SENSORS response."""
+
+    if (
+        response.sequence_id is None
+        or response.response_type
+        is not ArduinoResponseType.SENSORS
+    ):
+        raise ArduinoUnexpectedResponseError(
+            "Expected one sequenced SENSORS response."
+        )
+
+    distance_token = response.payload[3]
+    distance_mm = (
+        None
+        if distance_token == "NONE"
+        else int(distance_token)
+    )
+    light_raw = int(response.payload[4])
+
+    if (
+        distance_mm is not None
+        and distance_mm > _MAX_ULTRASONIC_DISTANCE_MM
+    ):
+        raise ArduinoUnexpectedResponseError(
+            "Arduino SENSORS distance exceeds 10000 mm."
+        )
+
+    if light_raw > _MAX_LIGHT_RAW:
+        raise ArduinoUnexpectedResponseError(
+            "Arduino SENSORS light value exceeds 1023."
+        )
+
+    return ArduinoSensorSnapshot(
+        sequence_id=response.sequence_id,
+        left_ir_raw=int(response.payload[0]),
+        right_ir_raw=int(response.payload[1]),
+        line_raw=int(response.payload[2]),
+        distance_mm=distance_mm,
+        light_raw=light_raw,
     )
 
 

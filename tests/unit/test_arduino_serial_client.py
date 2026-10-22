@@ -7,6 +7,7 @@ from ai_logistics_robot.adapters.hardware.arduino_serial_client import (
     ArduinoCommandOutcome,
     ArduinoCommandRejectedError,
     ArduinoControllerStatus,
+    ArduinoSensorSnapshot,
     ArduinoSequenceMismatchError,
     ArduinoSerialClient,
     ArduinoUnexpectedResponseError,
@@ -23,6 +24,7 @@ from ai_logistics_robot.adapters.hardware.arduino_serial_protocol import (
     encode_motion_command,
     encode_ping,
     encode_rearm,
+    encode_sensor_request,
     encode_status_request,
 )
 from ai_logistics_robot.adapters.hardware.arduino_serial_transport import (
@@ -626,6 +628,98 @@ class ArduinoSerialClientTests(unittest.TestCase):
         client.close()
 
         self.assertTrue(transport.closed)
+
+    def test_sensor_snapshot_response_is_decoded(self) -> None:
+        transport = _ScriptedTransport(
+            _sequenced_response(
+                ArduinoResponseType.SENSORS,
+                25,
+                "1",
+                "0",
+                "1",
+                "237",
+                "612",
+            )
+        )
+        client = ArduinoSerialClient(
+            transport=transport,
+            initial_sequence_id=25,
+        )
+
+        snapshot = client.request_sensors()
+
+        self.assertEqual(
+            snapshot,
+            ArduinoSensorSnapshot(
+                sequence_id=25,
+                left_ir_raw=1,
+                right_ir_raw=0,
+                line_raw=1,
+                distance_mm=237,
+                light_raw=612,
+            ),
+        )
+        self.assertEqual(
+            transport.requests,
+            [encode_sensor_request(sequence_id=25)],
+        )
+
+    def test_sensor_snapshot_preserves_missing_distance(
+        self,
+    ) -> None:
+        transport = _ScriptedTransport(
+            _sequenced_response(
+                ArduinoResponseType.SENSORS,
+                26,
+                "0",
+                "1",
+                "0",
+                "NONE",
+                "500",
+            )
+        )
+        client = ArduinoSerialClient(
+            transport=transport,
+            initial_sequence_id=26,
+        )
+
+        snapshot = client.request_sensors()
+
+        self.assertIsNone(snapshot.distance_mm)
+
+    def test_sensor_snapshot_rejects_out_of_range_values(
+        self,
+    ) -> None:
+        cases = (
+            (
+                ("1", "0", "1", "10001", "612"),
+                "distance",
+            ),
+            (
+                ("1", "0", "1", "237", "1024"),
+                "light value",
+            ),
+        )
+
+        for payload, expected_message in cases:
+            with self.subTest(payload=payload):
+                transport = _ScriptedTransport(
+                    _sequenced_response(
+                        ArduinoResponseType.SENSORS,
+                        27,
+                        *payload,
+                    )
+                )
+                client = ArduinoSerialClient(
+                    transport=transport,
+                    initial_sequence_id=27,
+                )
+
+                with self.assertRaisesRegex(
+                    ArduinoUnexpectedResponseError,
+                    expected_message,
+                ):
+                    client.request_sensors()
 
 
 if __name__ == "__main__":
