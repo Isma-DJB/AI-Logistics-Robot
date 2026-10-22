@@ -5,10 +5,11 @@
 // I-1.0 SUPERVISED SERIAL FIRMWARE
 // Safe handshake stage: no motion command is enabled.
 // ============================================================
+// Read-only sensor stage: no movement command is enabled.
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-stop-only";
+const char FIRMWARE_VERSION[] = "i-1.0-sensors-readonly";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -24,6 +25,23 @@ const int A_1B = 5;
 const int A_1A = 6;
 const int B_1B = 9;
 const int B_1A = 10;
+
+// ============================================================
+// SENSOR PINS VALIDATED DURING I-0.9
+// ============================================================
+
+const int ECHO_PIN = 4;
+const int TRIG_PIN = 3;
+const int RIGHT_IR_PIN = 7;
+const int LEFT_IR_PIN = 8;
+const int LINE_SENSOR_PIN = 2;
+const int LDR_PIN = A0;
+
+const int LIGHT_SAMPLE_COUNT = 10;
+const int LIGHT_SAMPLE_DELAY_MS = 2;
+
+const unsigned long ULTRASONIC_TIMEOUT_MICROSECONDS =
+    30000UL;
 
 // The controller starts latched after every boot.
 bool safetyLatched = true;
@@ -41,6 +59,88 @@ void stopMotors() {
   analogWrite(A_1A, 0);
   analogWrite(B_1B, 0);
   analogWrite(B_1A, 0);
+}
+
+bool readUltrasonicDistanceMillimeters(
+    unsigned long& distanceMillimeters
+) {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  const unsigned long durationMicroseconds = pulseIn(
+      ECHO_PIN,
+      HIGH,
+      ULTRASONIC_TIMEOUT_MICROSECONDS
+  );
+
+  if (durationMicroseconds == 0) {
+    return false;
+  }
+
+  distanceMillimeters =
+      durationMicroseconds * 10UL / 58UL;
+  return true;
+}
+
+int readAverageLightRaw() {
+  long total = 0;
+
+  for (
+      int sampleIndex = 0;
+      sampleIndex < LIGHT_SAMPLE_COUNT;
+      sampleIndex++
+  ) {
+    total += analogRead(LDR_PIN);
+    delay(LIGHT_SAMPLE_DELAY_MS);
+  }
+
+  return static_cast<int>(
+      total / LIGHT_SAMPLE_COUNT
+  );
+}
+
+void sendSensorSnapshot(unsigned long sequenceId) {
+  // Sensor inspection is read-only and must never activate a motor.
+  stopMotors();
+
+  const int leftIrRaw = digitalRead(LEFT_IR_PIN);
+  const int rightIrRaw = digitalRead(RIGHT_IR_PIN);
+  const int lineRaw = digitalRead(LINE_SENSOR_PIN);
+
+  unsigned long distanceMillimeters = 0;
+  const bool distanceAvailable =
+      readUltrasonicDistanceMillimeters(
+          distanceMillimeters
+      );
+
+  const int lightRaw = readAverageLightRaw();
+
+  stopMotors();
+
+  Serial.print(PROTOCOL_NAME);
+  Serial.print('|');
+  Serial.print(PROTOCOL_VERSION);
+  Serial.print("|SENSORS|");
+  Serial.print(sequenceId);
+  Serial.print('|');
+  Serial.print(leftIrRaw);
+  Serial.print('|');
+  Serial.print(rightIrRaw);
+  Serial.print('|');
+  Serial.print(lineRaw);
+  Serial.print('|');
+
+  if (distanceAvailable) {
+    Serial.print(distanceMillimeters);
+  } else {
+    Serial.print("NONE");
+  }
+
+  Serial.print('|');
+  Serial.println(lightRaw);
 }
 
 // ============================================================
@@ -243,6 +343,18 @@ void handleRequest(char* line) {
     return;
   }
 
+  if (strcmp(requestType, "SENSORS") == 0) {
+    if (tokenCount != 4) {
+      sendError(sequenceId, "BAD_FORMAT");
+      return;
+    }
+
+    stopMotors();
+    sendSensorSnapshot(sequenceId);
+    stopMotors();
+    return;
+  }
+
   if (strcmp(requestType, "ESTOP") == 0) {
     if (tokenCount != 4) {
       sendError(sequenceId, "BAD_FORMAT");
@@ -365,6 +477,14 @@ void setup() {
   pinMode(A_1A, OUTPUT);
   pinMode(B_1B, OUTPUT);
   pinMode(B_1A, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(RIGHT_IR_PIN, INPUT);
+  pinMode(LEFT_IR_PIN, INPUT);
+  pinMode(LINE_SENSOR_PIN, INPUT);
+  pinMode(LDR_PIN, INPUT);
+
+  digitalWrite(TRIG_PIN, LOW);
 
   stopMotors();
 
@@ -376,7 +496,7 @@ void setup() {
 }
 
 void loop() {
-  // Redundant stop is intentional during the handshake stage.
+  // Redundant stop is intentional during the read-only sensor stage.
   stopMotors();
   readSerialRequests();
   delay(1);
