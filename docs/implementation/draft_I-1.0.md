@@ -233,11 +233,20 @@ required.
 | `1d7dc60` | Versioned Arduino sensor-snapshot protocol |
 | `05d3bbc` | Typed Python Arduino sensor snapshots |
 | `8a5726c` | Physically validated read-only Arduino sensor telemetry |
+| `392c042` | Deterministic interpretation of raw Arduino sensors |
+| `c2d0899` | Arduino sensor fusion with physical grid perception |
+| `38940f4` | Physical runtime system clock |
+| `a7a6553` | Refreshed physical grid perspective calibration |
+| `a68a593` | Adaptive Arduino ambient-light calibration and tracking |
+| `b436d08` | Passive fused physical-perception diagnostic |
 
-The Batch B software foundation composes calibrated camera capture, ArUco
-localization, deterministic timestamping, and confirmed external state into
-immutable `PerceptionSnapshot` values. Missing or ambiguous localization
-remains an explicit failure and never produces a fabricated robot pose.
+The Batch B physical-perception boundary now composes calibrated camera
+capture, ArUco localization, deterministic timestamps, and interpreted Arduino
+sensor facts into immutable `PerceptionSnapshot` values. Local infrared and
+ultrasonic obstacles, the critical boundary hazard, and the debounced light
+target are available through the existing platform-independent contract.
+Missing or ambiguous localization remains an explicit failure and never
+produces a fabricated robot pose.
 
 The Batch C communication foundation now provides a versioned ASCII protocol,
 validated request and response objects, a safe serial transport, an optional
@@ -261,9 +270,9 @@ dependency.
 
 ## 9. Current Verification Record
 
-The current repository and Arduino sensor-telemetry verification were refreshed
-on 2026-10-22. The recorded physical camera validation was performed on
-2026-10-05.
+The current repository, refreshed camera calibration, adaptive light policy,
+and fused physical-perception verification were completed on 2026-10-23.
+Earlier full-grid ArUco validation was performed on 2026-10-05.
 
 | Verification | Result |
 |---|---|
@@ -299,11 +308,23 @@ on 2026-10-22. The recorded physical camera validation was performed on
 | Valid `CMD|MOVE_FORWARD` rejection | Passed: `BAD_COMMAND`, no wheel movement |
 | Live Python serial diagnostic on COM3 at 115200 baud | Passed |
 | Safe boot and final controller state | Passed: `ESTOPPED/LATCHED` |
-| Physical motor immobility throughout serial, `STOP`, and sensor validation | Passed |
+| Refreshed physical perspective calibration | Passed: 800 by 600 to 700 by 700 |
+| Deterministic Arduino sensor interpretation | Passed |
+| Physical fused boundary hazard | Passed: boundary true and critical hazard true |
+| Physical fused frontal obstacle | Passed: `115 mm` classified as an obstacle |
+| Automatic lamp-off ambient calibration | Passed across daylight, dim, near-dark, and ceiling-light conditions |
+| Ambient calibration stability | Passed: observed raw ranges from `0` through `2` |
+| Validated target-light defaults | Passed: activation `50`, release `30`, five stable readings |
+| Physical target activation near 100 cm | Passed under natural, near-dark, and ceiling-light conditions |
+| Conservative ambient-baseline tracking | Passed: one-unit tracking while inactive |
+| Baseline freezing for target light | Passed throughout candidate and active states |
+| Transient low-light ArUco miss | Safely rejected; same frame passed offline and six subsequent live poses passed |
+| Live fused physical `PerceptionSnapshot` composition | Passed |
+| Physical motor immobility throughout all passive fused tests | Passed |
 | `python tools/check_project_structure.py` | Passed |
-| Complete automated test suite | Passed: 485 tests |
+| Complete automated test suite | Passed: 537 tests |
 | `python -m ruff check .` | Passed |
-| `python -m mypy src` | Passed: 57 source files |
+| `python -m mypy src` | Passed: 61 source files |
 | `python -m pip check` | Passed: no broken requirements |
 | `python -m build` | Passed: source archive and wheel created |
 
@@ -323,20 +344,40 @@ The boot-only `READY` announcement is not required when reconnecting to an
 already running controller; active diagnostics synchronize through
 `PING/PONG`.
 
-Read-only sensor telemetry is also physically validated. Manual requests
-confirmed both infrared channels, black-boundary detection, an HC-SR04 reading
-of `196 mm` against a measured 20 cm target, and a photoresistor transition
-from `314` ambient to `901` illuminated. The live Python client decoded a
-sequenced `ArduinoSensorSnapshot` and then confirmed that the controller
-remained `ESTOPPED/LATCHED`. The wheels remained stationary throughout every
-sensor request.
+Read-only sensor telemetry is physically validated. Manual requests confirmed
+both infrared channels, black-boundary detection, an HC-SR04 reading of
+`196 mm` against a measured 20 cm target, and a photoresistor transition from
+`314` ambient to `901` illuminated. The live Python client decoded sequenced
+`ArduinoSensorSnapshot` values while the controller remained
+`ESTOPPED/LATCHED`.
 
-Future target arrival must fuse the overhead camera pose, a strong and stable
-light increase, and a short ultrasonic distance. The ultrasonic sensor must
-not be disabled near the lamp: its detection of the lamp support becomes an
-arrival confirmation only when the camera also places the robot in an
-authorized target-adjacent cell. Otherwise the detected object remains a
-normal obstacle.
+Raw values are now interpreted deterministically. Infrared polarity,
+ultrasonic distance, critical boundary detection, light hysteresis, and
+debounce are converted into stable physical facts. A close `115 mm` object
+remained a normal frontal obstacle even while the light target activated, and
+the black boundary produced a critical hazard.
+
+Lamp-off calibration now derives the baseline automatically from ten stable
+samples. The validated policy activates at a relative delta of `50`, releases
+at `30`, and requires five consecutive readings. Small inactive-state drift is
+followed one raw unit at a time. Tracking freezes for ambiguous, candidate,
+and active targets so that the target signal cannot be absorbed.
+
+Live fused camera-and-Arduino perception passed in daylight, dim natural light,
+near-dark conditions, and ceiling-light illumination. Target activation passed
+near 100 cm with observed deltas of `71` through `73` under ceiling light and
+`168` through `170` in near-dark conditions. Every physical run retained
+`ESTOPPED/LATCHED`, and both wheels remained stationary.
+
+One ceiling-light capture temporarily missed the ArUco marker and was rejected
+without fabricating a pose. The same rectified frame localized successfully
+offline, followed by six successful live fused observations.
+
+Authorized target arrival must still combine the confirmed overhead pose,
+target light, and short ultrasonic distance. The ultrasonic sensor remains
+active near the lamp: its detection of the lamp support becomes arrival
+evidence only when the robot is in an authorized target-adjacent cell.
+Otherwise the detected object remains a normal obstacle.
 
 Supervised movement remains intentionally disabled. No physical movement
 command will be accepted until bounded execution, movement-specific
@@ -362,17 +403,19 @@ four operational corner cells.
 
 - [x] combine calibrated camera capture and robot localization;
 - [x] produce the existing immutable `PerceptionSnapshot`;
-- [ ] integrate physical target, obstacle, and hazard sources;
+- [x] integrate physical target, obstacle, and hazard sources;
 - [x] provide explicit failures when localization is unavailable;
 - [x] satisfy the existing `PerceptionPort`.
 
-The software foundation is complete. Raw Arduino sensor telemetry is now
-available through typed host snapshots, but its conversion into target,
-obstacle, and hazard decisions remains pending.
+Batch B is complete at the passive physical-perception boundary. Typed Arduino
+telemetry is deterministically interpreted and fused with confirmed overhead
+pose and timestamps. Automatic ambient calibration, conservative baseline
+tracking, target debounce and hysteresis, local obstacle facts, and the
+critical boundary hazard are physically validated.
 
-Target arrival will require agreement between the overhead camera pose, a
-strong and stable light increase, and a short ultrasonic distance. Ultrasonic
-protection remains active throughout the approach.
+Mission-level target authorization will still require agreement between the
+overhead camera pose, stable target light, and short ultrasonic distance.
+Ultrasonic protection remains active throughout the approach.
 
 ### Batch C - Microcontroller Communication
 
@@ -432,15 +475,23 @@ The current I-1.0 implementation has these explicit limitations:
   reinstallation, or physical movement;
 - the camera IP address can change through DHCP;
 - the powerbank must be checked and recharged between experiments;
-- global obstacle and target detection are not yet implemented;
+- automatic light calibration requires the target lamp to remain off during
+  the initial stable ambient samples;
+- abrupt lighting changes outside the conservative tracking band are not
+  absorbed and require a fresh lamp-off calibration;
+- insufficient grid illumination can cause a transient ArUco miss, which is
+  rejected explicitly rather than converted into a fabricated pose;
+- global camera-based obstacle and target localization is not yet implemented;
+  current obstacle, boundary, and target facts come from local Arduino sensors;
 - the safe serial foundation is physically connected, but movement execution
   is not yet connected to the I-0.8 application;
 - the I-1.0 supervised firmware accepts `CMD|STOP` and read-only `SENSORS`;
   every movement `CMD` remains intentionally rejected;
 - `ACK/DONE` execution confirmation is available for `STOP` only; movement
   completion confirmation remains unavailable;
-- read-only sensor telemetry is physically validated but is not yet mapped
-  into `PerceptionSnapshot` target, obstacle, and hazard decisions;
+- fused local sensor facts are available in physical `PerceptionSnapshot`
+  values but are not yet consumed by bounded movement or authorized
+  target-arrival execution;
 - communication-loss handling has not yet been exercised during motor motion;
 - immediate local sensor reactions are not yet integrated into supervised
   execution;
@@ -465,11 +516,13 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Implement and physically validate the safe Arduino serial handshake.
 - [x] Implement and physically validate supervised `STOP` execution.
 - [x] Implement and physically validate read-only Arduino sensor telemetry.
+- [x] Interpret and fuse physical target, obstacle, and boundary-hazard facts.
+- [x] Validate automatic ambient calibration and target-light tracking.
 - [ ] Implement explicit host-to-Arduino movement execution.
 - [ ] Validate movement `ACK/DONE` and communication-loss behaviour.
 - [ ] Calibrate repeatable 20 cm movements.
 - [ ] Calibrate repeatable 90-degree rotations.
-- [ ] Integrate physical target and obstacle observations.
+- [x] Integrate physical target and obstacle observations.
 - [ ] Execute complete outbound, collection, and return missions.
 - [ ] Run complete physical V1 regression scenarios.
 - [ ] Update the public README and command-line status.

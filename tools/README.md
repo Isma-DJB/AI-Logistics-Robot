@@ -167,3 +167,49 @@ safety remains latched and never rearms or activates the motors.
 
 All movement commands remain rejected until bounded execution is implemented
 and physically calibrated.
+
+## Fused Physical-Perception Diagnostic
+
+The fused diagnostic requires both optional hardware and vision dependencies:
+
+```powershell
+python -m pip install -e ".[hardware,vision]"
+```
+
+`check_fused_physical_perception.py` combines live rectified ESP32-CAM
+localization with one sequenced Arduino sensor snapshot per observation. It
+produces the same immutable `PerceptionSnapshot` contract used by the
+platform-independent Brain.
+
+The target lamp must remain off during automatic ambient calibration. Run the
+validated passive diagnostic with:
+
+```powershell
+python tools\check_fused_physical_perception.py `
+    --url "http://192.168.1.109" `
+    --port "COM3" `
+    --samples 6 `
+    --serial-timeout 5 `
+    --camera-timeout 15
+```
+
+Automatic calibration uses ten lamp-off readings and rejects an unstable
+baseline whose raw range exceeds ten. A previously confirmed baseline can be
+provided explicitly with `--ambient-light-raw`.
+
+The validated target-light policy uses:
+
+- activation delta: `50`;
+- release delta: `30`;
+- consecutive stable readings: `5`;
+- one-unit ambient tracking for small inactive-state drift;
+- complete baseline freezing for ambiguous, candidate, and active targets.
+
+Each reported sample includes the raw light value, delta, tracked
+`baseline_after`, target state, robot pose, local obstacle facts, boundary
+hazard, ultrasonic distance, and capture timestamp.
+
+The diagnostic is strictly passive. It requires `ESTOPPED/LATCHED` before and
+after observation, sends neither `REARM` nor motion commands, and fails
+explicitly when ArUco localization, serial communication, calibration, or
+sensor interpretation is unavailable.

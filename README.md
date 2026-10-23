@@ -38,7 +38,13 @@ The current I-1.0 implementation includes:
   through both the serial monitor and the Python client;
 - a read-only serial diagnostic physically validated on COM3;
 - read-only five-sensor telemetry and typed Python snapshots, physically
-  validated while the controller remained `ESTOPPED/LATCHED`.
+  validated while the controller remained `ESTOPPED/LATCHED`;
+- deterministic interpretation of infrared, boundary, ultrasonic, and
+  photoresistor readings;
+- automatic lamp-off ambient calibration with conservative drift tracking;
+- debounced target-light activation using validated relative thresholds;
+- fused live camera and Arduino perception producing immutable physical
+  `PerceptionSnapshot` values.
 
 Synthetic localization verifies all four cardinal headings and the complete
 image-to-domain coordinate conversion. The printed 8 cm by 8 cm marker is now
@@ -50,7 +56,8 @@ is elevated above the calibrated floor plane. Physical navigation will
 therefore target cell centers.
 
 The physical `PerceptionPort` software boundary is implemented and validated
-with synthetic frames. The safe microcontroller handshake is physically
+with both synthetic frames and live fused camera-and-Arduino observations.
+The safe microcontroller handshake is physically
 connected through COM3 and validated with `PING`, `STATUS`, `REARM`, and
 `ESTOP`. The supervised `STOP` command was also accepted in both safety states
 and completed through matching `ACK` and `DONE|OK` responses from both the
@@ -61,9 +68,21 @@ Serial Monitor and the Python client. Both infrared obstacle sensors, the
 downward boundary sensor, the HC-SR04 distance sensor, and the photoresistor
 produced valid typed snapshots while every wheel remained stationary.
 
-Integration of physical sensor values into target, obstacle, and hazard
-decisions, supervised movement execution, calibrated cell movement, and
-complete end-to-end V1 mission execution remain in progress.
+Raw readings are now converted into local obstacle, critical boundary-hazard,
+and debounced target-light facts. Lamp-off calibration is automatic, the
+ambient baseline follows only small safe drift, and tracking freezes whenever
+a target becomes ambiguous, candidate, or active. The validated defaults use
+an activation delta of `50`, a release delta of `30`, and five consecutive
+readings.
+
+Live fused perception was validated in daylight, dim natural light, near-dark
+conditions, and ceiling-light illumination. Each run preserved confirmed
+ArUco pose, immutable timestamps, `ESTOPPED/LATCHED`, and complete motor
+immobility.
+
+Authorized target-cell arrival logic, supervised movement execution,
+calibrated cell movement, and complete end-to-end V1 mission execution remain
+in progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
