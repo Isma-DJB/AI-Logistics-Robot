@@ -115,6 +115,91 @@ class ArduinoSensorInterpreterTests(unittest.TestCase):
             beyond_threshold.frontal_obstacle_detected
         )
 
+    def test_tracks_gradual_ambient_drift_in_both_directions(
+        self,
+    ) -> None:
+        cases = (
+            (
+                (301, 302, 303),
+                (1, 1, 1),
+                303,
+            ),
+            (
+                (299, 298, 297),
+                (-1, -1, -1),
+                297,
+            ),
+        )
+
+        for light_values, expected_deltas, expected_baseline in cases:
+            with self.subTest(light_values=light_values):
+                interpreter = ArduinoSensorInterpreter(
+                    ambient_light_raw=300,
+                )
+                deltas = tuple(
+                    interpreter.interpret(
+                        _snapshot(
+                            sequence_id=sequence_id,
+                            light_raw=light_raw,
+                        )
+                    ).light_delta
+                    for sequence_id, light_raw in enumerate(
+                        light_values,
+                        start=1,
+                    )
+                )
+
+                self.assertEqual(deltas, expected_deltas)
+                self.assertEqual(
+                    interpreter.ambient_light_raw,
+                    expected_baseline,
+                )
+                self.assertFalse(interpreter.target_active)
+
+    def test_freezes_baseline_for_candidate_and_active_target(
+        self,
+    ) -> None:
+        interpreter = ArduinoSensorInterpreter(
+            ambient_light_raw=300,
+            required_stable_readings=2,
+        )
+
+        candidate = interpreter.interpret(
+            _snapshot(sequence_id=1, light_raw=350)
+        )
+        activated = interpreter.interpret(
+            _snapshot(sequence_id=2, light_raw=350)
+        )
+        release_candidate = interpreter.interpret(
+            _snapshot(sequence_id=3, light_raw=320)
+        )
+
+        self.assertFalse(candidate.target_active)
+        self.assertTrue(activated.target_active)
+        self.assertTrue(release_candidate.target_active)
+        self.assertEqual(
+            interpreter.ambient_light_raw,
+            300,
+        )
+
+    def test_does_not_absorb_ambiguous_brightness_change(
+        self,
+    ) -> None:
+        interpreter = ArduinoSensorInterpreter(
+            ambient_light_raw=300,
+        )
+
+        interpretation = interpreter.interpret(
+            _snapshot(light_raw=340)
+        )
+
+        self.assertEqual(interpretation.light_delta, 40)
+        self.assertFalse(interpretation.target_active)
+        self.assertEqual(
+            interpreter.ambient_light_raw,
+            300,
+        )
+
     def test_target_activation_requires_stable_readings(self) -> None:
         interpreter = ArduinoSensorInterpreter(
             ambient_light_raw=300,
@@ -138,6 +223,33 @@ class ArduinoSensorInterpreterTests(unittest.TestCase):
         self.assertTrue(third.target_active)
         self.assertTrue(interpreter.target_active)
 
+    def test_defaults_match_physical_light_calibration(
+        self,
+    ) -> None:
+        interpreter = ArduinoSensorInterpreter(
+            ambient_light_raw=469,
+        )
+
+        interpretations = tuple(
+            interpreter.interpret(
+                _snapshot(
+                    sequence_id=sequence_id,
+                    light_raw=673,
+                )
+            )
+            for sequence_id in range(1, 6)
+        )
+
+        self.assertTrue(
+            all(
+                not interpretation.target_active
+                for interpretation in interpretations[:4]
+            )
+        )
+        self.assertTrue(
+            interpretations[4].target_active
+        )
+
     def test_unstable_activation_sequence_is_reset(self) -> None:
         interpreter = ArduinoSensorInterpreter(
             ambient_light_raw=300,
@@ -147,7 +259,7 @@ class ArduinoSensorInterpreterTests(unittest.TestCase):
         light_values = (
             900,
             900,
-            400,
+            349,
             900,
             900,
         )
@@ -202,7 +314,7 @@ class ArduinoSensorInterpreterTests(unittest.TestCase):
             _snapshot(sequence_id=4, light_raw=450)
         )
         released = interpreter.interpret(
-            _snapshot(sequence_id=5, light_raw=440)
+            _snapshot(sequence_id=5, light_raw=350)
         )
 
         self.assertTrue(activated.target_active)
@@ -223,13 +335,13 @@ class ArduinoSensorInterpreterTests(unittest.TestCase):
             _snapshot(sequence_id=2, light_raw=900)
         )
         interpreter.interpret(
-            _snapshot(sequence_id=3, light_raw=400)
+            _snapshot(sequence_id=3, light_raw=330)
         )
         recovered = interpreter.interpret(
             _snapshot(sequence_id=4, light_raw=900)
         )
         new_release = interpreter.interpret(
-            _snapshot(sequence_id=5, light_raw=400)
+            _snapshot(sequence_id=5, light_raw=330)
         )
 
         self.assertTrue(recovered.target_active)

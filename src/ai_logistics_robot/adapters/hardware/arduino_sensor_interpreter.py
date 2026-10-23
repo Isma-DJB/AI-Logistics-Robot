@@ -44,8 +44,8 @@ class ArduinoSensorInterpreter:
         *,
         ambient_light_raw: int,
         frontal_obstacle_distance_mm: int = 200,
-        target_activation_delta: int = 220,
-        target_release_delta: int = 150,
+        target_activation_delta: int = 50,
+        target_release_delta: int = 30,
         required_stable_readings: int = 5,
     ) -> None:
         """Validate and retain one deterministic sensor policy."""
@@ -98,7 +98,7 @@ class ArduinoSensorInterpreter:
 
     @property
     def ambient_light_raw(self) -> int:
-        """Return the fixed ambient-light calibration baseline."""
+        """Return the current tracked ambient-light baseline."""
 
         return self._ambient_light_raw
 
@@ -123,6 +123,7 @@ class ArduinoSensorInterpreter:
             snapshot.light_raw - self._ambient_light_raw
         )
         self._update_target_state(light_delta)
+        self._track_ambient_light(light_delta)
 
         distance_mm = snapshot.distance_mm
         frontal_obstacle_detected = (
@@ -148,6 +149,25 @@ class ArduinoSensorInterpreter:
             light_delta=light_delta,
             target_active=self._target_active,
         )
+
+    def _track_ambient_light(
+        self,
+        light_delta: int,
+    ) -> None:
+        """Follow small ambient drift without absorbing a target."""
+
+        if (
+            self._target_active
+            or self._activation_count > 0
+            or abs(light_delta)
+            > self._target_release_delta
+        ):
+            return
+
+        if light_delta > 0:
+            self._ambient_light_raw += 1
+        elif light_delta < 0:
+            self._ambient_light_raw -= 1
 
     def _update_target_state(
         self,
