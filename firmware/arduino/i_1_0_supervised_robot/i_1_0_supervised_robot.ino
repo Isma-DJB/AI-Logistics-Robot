@@ -4,13 +4,13 @@
 
 // ============================================================
 // I-1.0 SUPERVISED SERIAL FIRMWARE
-// Bounded-motion preparation: movement remains disabled.
+// Bounded-forward architecture remains compile-time disabled.
 // ============================================================
-// Validated motor outputs are defined but never activated.
+// No movement request can activate a motor in this stage.
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-motion-prepared-disabled";
+const char FIRMWARE_VERSION[] = "i-1.0-bounded-forward-disabled";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -33,6 +33,16 @@ const int MOTOR_OFFSET_MAX_PERCENT = 100;
 // This is the physically validated I-0.9 cruising value.
 // It is not used while supervised movement remains disabled.
 const int FORWARD_MOTION_SPEED = 120;
+const int FORWARD_RESTART_SPEED = 140;
+
+const unsigned long FORWARD_DIRECTION_PAUSE_MS = 80UL;
+const unsigned long FORWARD_RESTART_MS = 100UL;
+const unsigned long BOUNDED_FORWARD_DURATION_MS = 250UL;
+const unsigned long ULTRASONIC_SAMPLE_INTERVAL_MS = 50UL;
+const unsigned long FRONTAL_OBSTACLE_DISTANCE_MM = 200UL;
+
+// This lock must remain false until the wheels-lifted validation stage.
+const bool MOTION_EXECUTION_ENABLED = false;
 
 float motorAOffset = 1.0F;
 float motorBOffset = 1.0F;
@@ -54,8 +64,22 @@ const int LIGHT_SAMPLE_DELAY_MS = 2;
 const unsigned long ULTRASONIC_TIMEOUT_MICROSECONDS =
     30000UL;
 
+enum class MotionPhase : uint8_t {
+  IDLE,
+  DIRECTION_PAUSE,
+  RESTART_BOOST,
+  CRUISE
+};
+
 // The controller starts latched after every boot.
 bool safetyLatched = true;
+
+bool motionExecuting = false;
+unsigned long activeMotionSequenceId = 0;
+unsigned long motionEndDeadlineMs = 0;
+unsigned long motionPhaseDeadlineMs = 0;
+unsigned long nextUltrasonicSampleMs = 0;
+MotionPhase motionPhase = MotionPhase::IDLE;
 
 char serialBuffer[REQUEST_BUFFER_SIZE];
 size_t serialLength = 0;
@@ -266,6 +290,8 @@ void sendStatus(unsigned long sequenceId) {
 
   if (safetyLatched) {
     Serial.println("ESTOPPED|LATCHED");
+  } else if (motionExecuting) {
+    Serial.println("EXECUTING|SAFE");
   } else {
     Serial.println("IDLE|SAFE");
   }
@@ -282,6 +308,215 @@ void sendError(
   Serial.print(sequenceId);
   Serial.print('|');
   Serial.println(errorCode);
+}
+
+// ============================================================
+// BOUNDED FORWARD-MOTION STATE MACHINE
+// ============================================================
+
+bool deadlineReached(
+    unsigned long currentTimeMs,
+    unsigned long deadlineMs
+) {
+  return static_cast<long>(
+      currentTimeMs - deadlineMs
+  ) >= 0;
+}
+
+void resetActiveMotionState() {
+  motionExecuting = false;
+  activeMotionSequenceId = 0;
+  motionEndDeadlineMs = 0;
+  motionPhaseDeadlineMs = 0;
+  nextUltrasonicSampleMs = 0;
+  motionPhase = MotionPhase::IDLE;
+}
+
+void completeActiveMotion(
+    const char* completionCode,
+    bool latchSafety
+) {
+  const unsigned long completedSequenceId =
+      activeMotionSequenceId;
+
+  stopMotors();
+  resetActiveMotionState();
+
+  if (latchSafety) {
+    safetyLatched = true;
+  }
+
+  sendCompletion(
+      completedSequenceId,
+      completionCode
+  );
+}
+
+void startBoundedForwardMotion(
+    unsigned long sequenceId
+) {
+  if (!MOTION_EXECUTION_ENABLED) {
+    stopMotors();
+    resetActiveMotionState();
+    sendError(sequenceId, "BAD_COMMAND");
+    return;
+  }
+
+  if (safetyLatched) {
+    stopMotors();
+    sendError(sequenceId, "SAFETY_LATCHED");
+    return;
+  }
+
+  if (motionExecuting) {
+    sendError(sequenceId, "BUSY");
+    return;
+  }
+
+  const unsigned long currentTimeMs = millis();
+
+  stopMotors();
+
+  motionExecuting = true;
+  activeMotionSequenceId = sequenceId;
+  motionEndDeadlineMs =
+      currentTimeMs + BOUNDED_FORWARD_DURATION_MS;
+  motionPhaseDeadlineMs =
+      currentTimeMs + FORWARD_DIRECTION_PAUSE_MS;
+  nextUltrasonicSampleMs = currentTimeMs;
+  motionPhase = MotionPhase::DIRECTION_PAUSE;
+
+  sendAcknowledgement(
+      sequenceId,
+      "MOVE_FORWARD"
+  );
+}
+
+bool frontalObstacleDetected(
+    unsigned long currentTimeMs
+) {
+  if (
+      digitalRead(LEFT_IR_PIN) == LOW
+      || digitalRead(RIGHT_IR_PIN) == LOW
+  ) {
+    return true;
+  }
+
+  if (
+      !deadlineReached(
+          currentTimeMs,
+          nextUltrasonicSampleMs
+      )
+  ) {
+    return false;
+  }
+
+  nextUltrasonicSampleMs =
+      currentTimeMs + ULTRASONIC_SAMPLE_INTERVAL_MS;
+
+  unsigned long distanceMillimeters = 0;
+
+  if (
+      !readUltrasonicDistanceMillimeters(
+          distanceMillimeters
+      )
+  ) {
+    return false;
+  }
+
+  return (
+      distanceMillimeters
+      <= FRONTAL_OBSTACLE_DISTANCE_MM
+  );
+}
+
+void serviceActiveMotion() {
+  if (!MOTION_EXECUTION_ENABLED) {
+    stopMotors();
+    resetActiveMotionState();
+    return;
+  }
+
+  if (!motionExecuting) {
+    stopMotors();
+    return;
+  }
+
+  if (safetyLatched) {
+    completeActiveMotion(
+        "EMERGENCY_STOP",
+        true
+    );
+    return;
+  }
+
+  if (digitalRead(LINE_SENSOR_PIN) == HIGH) {
+    completeActiveMotion(
+        "EMERGENCY_STOP",
+        true
+    );
+    return;
+  }
+
+  const unsigned long currentTimeMs = millis();
+
+  if (frontalObstacleDetected(currentTimeMs)) {
+    completeActiveMotion(
+        "BLOCKED",
+        false
+    );
+    return;
+  }
+
+  if (
+      deadlineReached(
+          currentTimeMs,
+          motionEndDeadlineMs
+      )
+  ) {
+    completeActiveMotion(
+        "OK",
+        false
+    );
+    return;
+  }
+
+  if (
+      motionPhase == MotionPhase::DIRECTION_PAUSE
+      && deadlineReached(
+          currentTimeMs,
+          motionPhaseDeadlineMs
+      )
+  ) {
+    writeForwardOutputs(FORWARD_RESTART_SPEED);
+    motionPhase = MotionPhase::RESTART_BOOST;
+    motionPhaseDeadlineMs =
+        currentTimeMs + FORWARD_RESTART_MS;
+    return;
+  }
+
+  if (
+      motionPhase == MotionPhase::RESTART_BOOST
+      && deadlineReached(
+          currentTimeMs,
+          motionPhaseDeadlineMs
+      )
+  ) {
+    writeForwardOutputs(FORWARD_MOTION_SPEED);
+    motionPhase = MotionPhase::CRUISE;
+    return;
+  }
+
+  if (
+      motionPhase != MotionPhase::DIRECTION_PAUSE
+      && motionPhase != MotionPhase::RESTART_BOOST
+      && motionPhase != MotionPhase::CRUISE
+  ) {
+    completeActiveMotion(
+        "EMERGENCY_STOP",
+        true
+    );
+  }
 }
 
 // ============================================================
@@ -358,9 +593,6 @@ int splitTokens(
 }
 
 void handleRequest(char* line) {
-  // No incoming message may activate a motor in this stage.
-  stopMotors();
-
   char* tokens[MAX_TOKENS];
   const int tokenCount = splitTokens(
       line,
@@ -416,6 +648,11 @@ void handleRequest(char* line) {
       return;
     }
 
+    if (motionExecuting) {
+      sendError(sequenceId, "BUSY");
+      return;
+    }
+
     stopMotors();
     sendSensorSnapshot(sequenceId);
     stopMotors();
@@ -430,6 +667,16 @@ void handleRequest(char* line) {
 
     stopMotors();
     safetyLatched = true;
+
+    if (motionExecuting) {
+      completeActiveMotion(
+          "EMERGENCY_STOP",
+          true
+      );
+    } else {
+      resetActiveMotionState();
+    }
+
     sendStatus(sequenceId);
     return;
   }
@@ -440,15 +687,19 @@ void handleRequest(char* line) {
       return;
     }
 
+    if (motionExecuting) {
+      sendError(sequenceId, "BUSY");
+      return;
+    }
+
     stopMotors();
+    resetActiveMotionState();
     safetyLatched = false;
     sendStatus(sequenceId);
     return;
   }
 
   if (strcmp(requestType, "CMD") == 0) {
-    stopMotors();
-
     if (tokenCount != 5) {
       sendError(sequenceId, "BAD_FORMAT");
       return;
@@ -456,25 +707,55 @@ void handleRequest(char* line) {
 
     const char* commandType = tokens[4];
 
-    // STOP is always accepted, including while safety remains latched.
+    // STOP is always accepted, including during active execution.
     if (strcmp(commandType, "STOP") == 0) {
+      stopMotors();
+
+      if (motionExecuting) {
+        completeActiveMotion(
+            "EMERGENCY_STOP",
+            false
+        );
+      } else {
+        resetActiveMotionState();
+      }
+
       sendAcknowledgement(
           sequenceId,
           commandType
       );
-      stopMotors();
       sendCompletion(sequenceId, "OK");
       return;
     }
 
+    if (motionExecuting) {
+      sendError(sequenceId, "BUSY");
+      return;
+    }
+
     if (safetyLatched) {
+      stopMotors();
       sendError(sequenceId, "SAFETY_LATCHED");
       return;
     }
 
-    // Movement remains intentionally unavailable.
+    if (
+        strcmp(
+            commandType,
+            "MOVE_FORWARD"
+        ) == 0
+    ) {
+      startBoundedForwardMotion(sequenceId);
+      return;
+    }
+
+    stopMotors();
     sendError(sequenceId, "BAD_COMMAND");
     return;
+  }
+
+  if (!motionExecuting) {
+    stopMotors();
   }
 
   sendError(sequenceId, "BAD_COMMAND");
@@ -564,8 +845,19 @@ void setup() {
 }
 
 void loop() {
-  // Redundant stop is intentional during the read-only sensor stage.
-  stopMotors();
+  if (
+      !MOTION_EXECUTION_ENABLED
+      || !motionExecuting
+  ) {
+    stopMotors();
+  }
+
   readSerialRequests();
+  serviceActiveMotion();
+
+  if (!MOTION_EXECUTION_ENABLED) {
+    stopMotors();
+  }
+
   delay(1);
 }
