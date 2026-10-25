@@ -36,6 +36,10 @@ The current I-1.0 implementation includes:
 - a separate supervised firmware that boots in `ESTOPPED/LATCHED`;
 - supervised `STOP` execution with matching `ACK/DONE`, physically validated
   through both the serial monitor and the Python client;
+- bounded supervised `MOVE_FORWARD` execution with matching `ACK/DONE`,
+  immediate local safety intervention, and an automatic time bound;
+- an explicitly authorized Python bounded-motion diagnostic that verifies
+  preflight sensors and restores `ESTOPPED/LATCHED`;
 - a read-only serial diagnostic physically validated on COM3;
 - read-only five-sensor telemetry and typed Python snapshots, physically
   validated while the controller remained `ESTOPPED/LATCHED`;
@@ -57,11 +61,18 @@ therefore target cell centers.
 
 The physical `PerceptionPort` software boundary is implemented and validated
 with both synthetic frames and live fused camera-and-Arduino observations.
-The safe microcontroller handshake is physically
-connected through COM3 and validated with `PING`, `STATUS`, `REARM`, and
-`ESTOP`. The supervised `STOP` command was also accepted in both safety states
-and completed through matching `ACK` and `DONE|OK` responses from both the
-serial monitor and the Python client. Every motor output remained stopped.
+The safe microcontroller handshake is physically connected through COM3 and
+validated with `PING`, `STATUS`, `REARM`, and `ESTOP`. The supervised `STOP`
+command was accepted in both safety states and completed through matching
+`ACK` and `DONE|OK` responses from both the serial monitor and the Python
+client.
+
+A 250 ms supervised `MOVE_FORWARD` primitive is also physically validated.
+Normal completion, ultrasonic `BLOCKED`, boundary-triggered emergency stop,
+active `STOP`, active `ESTOP`, and bounded host disconnection all stopped the
+motors safely. The guarded Python diagnostic verifies clear preflight sensors,
+requires explicit wheels-lifted authorization, and restores
+`ESTOPPED/LATCHED` after execution.
 
 The read-only `SENSORS` path was physically validated through both the Arduino
 Serial Monitor and the Python client. Both infrared obstacle sensors, the
@@ -80,9 +91,9 @@ conditions, and ceiling-light illumination. Each run preserved confirmed
 ArUco pose, immutable timestamps, `ESTOPPED/LATCHED`, and complete motor
 immobility.
 
-Authorized target-cell arrival logic, supervised movement execution,
-calibrated cell movement, and complete end-to-end V1 mission execution remain
-in progress.
+Authorized target-cell arrival logic, calibrated 20 cm cell movement,
+calibrated cardinal rotations, and complete end-to-end V1 mission execution
+remain in progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).

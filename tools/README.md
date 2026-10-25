@@ -165,8 +165,9 @@ right infrared, boundary-line, ultrasonic-distance, and light values. A missing
 ultrasonic echo is represented by `NONE`. Sensor inspection is available while
 safety remains latched and never rearms or activates the motors.
 
-All movement commands remain rejected until bounded execution is implemented
-and physically calibrated.
+The supervised firmware now accepts one bounded `MOVE_FORWARD` primitive.
+Exact 20 cm movement and cardinal rotations remain deliberately uncalibrated
+and belong to the separate cell-motion calibration stage.
 
 ## Fused Physical-Perception Diagnostic
 
@@ -213,3 +214,28 @@ The diagnostic is strictly passive. It requires `ESTOPPED/LATCHED` before and
 after observation, sends neither `REARM` nor motion commands, and fails
 explicitly when ArUco localization, serial communication, calibration, or
 sensor interpretation is unavailable.
+
+## Bounded Arduino Motion Diagnostic
+
+`check_bounded_arduino_motion.py` validates one host-controlled bounded forward
+exchange without claiming a complete 20 cm cell transition. The robot must be
+secured on a stable support with both wheels lifted and free.
+
+Close the Arduino Serial Monitor, keep the power switch accessible, and run:
+
+~~~powershell
+python tools\check_bounded_arduino_motion.py `
+    --port "COM3" `
+    --confirm-wheels-lifted `
+    --timeout 5
+~~~
+
+The diagnostic refuses to open the serial connection unless
+`--confirm-wheels-lifted` is present. It then requires an initial
+`ESTOPPED/LATCHED` state, clear infrared sensors, a safe boundary reading, and
+an available ultrasonic distance greater than 200 mm.
+
+After preflight it sends `REARM`, executes exactly one bounded
+`MOVE_FORWARD`, requires matching `ACK` and terminal `DONE|OK`, and always
+requests `ESTOP` during cleanup. Successful completion therefore ends in the
+confirmed `ESTOPPED/LATCHED` state.
