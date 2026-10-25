@@ -35,10 +35,10 @@ class GridCalibrationLoadingTests(unittest.TestCase):
         self.assertEqual(
             calibration.source_points,
             (
-                (145.0, 44.0),
-                (629.0, 50.0),
-                (616.0, 528.0),
-                (143.0, 526.0),
+                (134.0, 31.0),
+                (618.0, 24.0),
+                (618.0, 500.0),
+                (150.0, 509.0),
             ),
         )
 
