@@ -4,13 +4,13 @@
 
 // ============================================================
 // I-1.0 SUPERVISED SERIAL FIRMWARE
-// Bounded-forward architecture remains compile-time disabled.
+// Controlled wheels-lifted bounded-forward validation stage.
 // ============================================================
-// No movement request can activate a motor in this stage.
+// Movement is limited to one supervised 250 ms command.
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-bounded-forward-disabled";
+const char FIRMWARE_VERSION[] = "i-1.0-bounded-forward-wheels-lifted";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -30,8 +30,8 @@ const int B_1A = 10;
 const int MOTOR_OFFSET_MIN_PERCENT = 50;
 const int MOTOR_OFFSET_MAX_PERCENT = 100;
 
-// This is the physically validated I-0.9 cruising value.
-// It is not used while supervised movement remains disabled.
+// These are the physically validated I-0.9 forward values.
+// They are used only inside the supervised bounded command.
 const int FORWARD_MOTION_SPEED = 120;
 const int FORWARD_RESTART_SPEED = 140;
 
@@ -41,8 +41,8 @@ const unsigned long BOUNDED_FORWARD_DURATION_MS = 250UL;
 const unsigned long ULTRASONIC_SAMPLE_INTERVAL_MS = 50UL;
 const unsigned long FRONTAL_OBSTACLE_DISTANCE_MM = 200UL;
 
-// This lock must remain false until the wheels-lifted validation stage.
-const bool MOTION_EXECUTION_ENABLED = false;
+// Enabled only for the controlled wheels-lifted validation stage.
+const bool MOTION_EXECUTION_ENABLED = true;
 
 float motorAOffset = 1.0F;
 float motorBOffset = 1.0F;
