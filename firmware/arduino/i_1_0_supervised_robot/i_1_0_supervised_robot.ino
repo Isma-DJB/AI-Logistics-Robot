@@ -4,13 +4,13 @@
 
 // ============================================================
 // I-1.0 SUPERVISED SERIAL FIRMWARE
-// Controlled wheels-lifted bounded-forward validation stage.
+// Bounded-turn preparation with execution still disabled.
 // ============================================================
-// Movement is limited to one supervised 250 ms command.
+// Forward remains enabled; turn outputs are not yet callable.
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-bounded-forward-wheels-lifted";
+const char FIRMWARE_VERSION[] = "i-1.0-bounded-turns-camera-required";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -30,19 +30,25 @@ const int B_1A = 10;
 const int MOTOR_OFFSET_MIN_PERCENT = 50;
 const int MOTOR_OFFSET_MAX_PERCENT = 100;
 
-// These are the physically validated I-0.9 forward values.
-// They are used only inside the supervised bounded command.
+// These are the physically validated I-0.9 motor values.
+// Forward remains enabled while turns stay behind a separate lock.
 const int FORWARD_MOTION_SPEED = 120;
 const int FORWARD_RESTART_SPEED = 140;
+const int TURN_MOTION_SPEED = 120;
+const int TURN_RESTART_SPEED = 140;
 
 const unsigned long FORWARD_DIRECTION_PAUSE_MS = 80UL;
 const unsigned long FORWARD_RESTART_MS = 100UL;
 const unsigned long BOUNDED_FORWARD_DURATION_MS = 250UL;
+// This is a coarse bounded turn window, not a guaranteed 90-degree turn.
+// The host must confirm the resulting cardinal heading with the camera.
+const unsigned long BOUNDED_TURN_DURATION_MS = 900UL;
 const unsigned long ULTRASONIC_SAMPLE_INTERVAL_MS = 50UL;
 const unsigned long FRONTAL_OBSTACLE_DISTANCE_MM = 200UL;
 
-// Enabled only for the controlled wheels-lifted validation stage.
+// Forward is validated. Turns remain locked until wheels-lifted testing.
 const bool MOTION_EXECUTION_ENABLED = true;
+const bool TURN_EXECUTION_ENABLED = true;
 
 float motorAOffset = 1.0F;
 float motorBOffset = 1.0F;
@@ -71,6 +77,13 @@ enum class MotionPhase : uint8_t {
   CRUISE
 };
 
+enum class ActiveMotionCommand : uint8_t {
+  NONE,
+  MOVE_FORWARD,
+  TURN_LEFT,
+  TURN_RIGHT
+};
+
 // The controller starts latched after every boot.
 bool safetyLatched = true;
 
@@ -80,6 +93,8 @@ unsigned long motionEndDeadlineMs = 0;
 unsigned long motionPhaseDeadlineMs = 0;
 unsigned long nextUltrasonicSampleMs = 0;
 MotionPhase motionPhase = MotionPhase::IDLE;
+ActiveMotionCommand activeMotionCommand =
+    ActiveMotionCommand::NONE;
 
 char serialBuffer[REQUEST_BUFFER_SIZE];
 size_t serialLength = 0;
@@ -142,6 +157,46 @@ void writeForwardOutputs(int speed) {
           motorBOffset
       )
   );
+  analogWrite(
+      B_1B,
+      applyMotorOffset(
+          speed,
+          motorAOffset
+      )
+  );
+  analogWrite(B_1A, 0);
+}
+
+void writeTurnLeftOutputs(int speed) {
+  // This polarity was physically validated as a left rotation.
+  analogWrite(A_1B, 0);
+  analogWrite(
+      A_1A,
+      applyMotorOffset(
+          speed,
+          motorBOffset
+      )
+  );
+  analogWrite(B_1B, 0);
+  analogWrite(
+      B_1A,
+      applyMotorOffset(
+          speed,
+          motorAOffset
+      )
+  );
+}
+
+void writeTurnRightOutputs(int speed) {
+  // This polarity was physically validated as a right rotation.
+  analogWrite(
+      A_1B,
+      applyMotorOffset(
+          speed,
+          motorBOffset
+      )
+  );
+  analogWrite(A_1A, 0);
   analogWrite(
       B_1B,
       applyMotorOffset(
@@ -330,6 +385,7 @@ void resetActiveMotionState() {
   motionPhaseDeadlineMs = 0;
   nextUltrasonicSampleMs = 0;
   motionPhase = MotionPhase::IDLE;
+  activeMotionCommand = ActiveMotionCommand::NONE;
 }
 
 void completeActiveMotion(
@@ -379,6 +435,8 @@ void startBoundedForwardMotion(
 
   motionExecuting = true;
   activeMotionSequenceId = sequenceId;
+  activeMotionCommand =
+      ActiveMotionCommand::MOVE_FORWARD;
   motionEndDeadlineMs =
       currentTimeMs + BOUNDED_FORWARD_DURATION_MS;
   motionPhaseDeadlineMs =
@@ -389,6 +447,59 @@ void startBoundedForwardMotion(
   sendAcknowledgement(
       sequenceId,
       "MOVE_FORWARD"
+  );
+}
+
+void startBoundedTurnMotion(
+    unsigned long sequenceId,
+    ActiveMotionCommand command
+) {
+  if (!TURN_EXECUTION_ENABLED) {
+    stopMotors();
+    resetActiveMotionState();
+    sendError(sequenceId, "BAD_COMMAND");
+    return;
+  }
+
+  if (safetyLatched) {
+    stopMotors();
+    sendError(sequenceId, "SAFETY_LATCHED");
+    return;
+  }
+
+  if (motionExecuting) {
+    sendError(sequenceId, "BUSY");
+    return;
+  }
+
+  const bool isLeftTurn =
+      command == ActiveMotionCommand::TURN_LEFT;
+  const bool isRightTurn =
+      command == ActiveMotionCommand::TURN_RIGHT;
+
+  if (!isLeftTurn && !isRightTurn) {
+    stopMotors();
+    sendError(sequenceId, "BAD_COMMAND");
+    return;
+  }
+
+  const unsigned long currentTimeMs = millis();
+
+  stopMotors();
+
+  motionExecuting = true;
+  activeMotionSequenceId = sequenceId;
+  activeMotionCommand = command;
+  motionEndDeadlineMs =
+      currentTimeMs + BOUNDED_TURN_DURATION_MS;
+  motionPhaseDeadlineMs =
+      currentTimeMs + FORWARD_DIRECTION_PAUSE_MS;
+  nextUltrasonicSampleMs = 0;
+  motionPhase = MotionPhase::DIRECTION_PAUSE;
+
+  sendAcknowledgement(
+      sequenceId,
+      isLeftTurn ? "TURN_LEFT" : "TURN_RIGHT"
   );
 }
 
@@ -460,7 +571,11 @@ void serviceActiveMotion() {
 
   const unsigned long currentTimeMs = millis();
 
-  if (frontalObstacleDetected(currentTimeMs)) {
+  if (
+      activeMotionCommand
+          == ActiveMotionCommand::MOVE_FORWARD
+      && frontalObstacleDetected(currentTimeMs)
+  ) {
     completeActiveMotion(
         "BLOCKED",
         false
@@ -488,7 +603,29 @@ void serviceActiveMotion() {
           motionPhaseDeadlineMs
       )
   ) {
-    writeForwardOutputs(FORWARD_RESTART_SPEED);
+    if (
+        activeMotionCommand
+        == ActiveMotionCommand::MOVE_FORWARD
+    ) {
+      writeForwardOutputs(FORWARD_RESTART_SPEED);
+    } else if (
+        activeMotionCommand
+        == ActiveMotionCommand::TURN_LEFT
+    ) {
+      writeTurnLeftOutputs(TURN_RESTART_SPEED);
+    } else if (
+        activeMotionCommand
+        == ActiveMotionCommand::TURN_RIGHT
+    ) {
+      writeTurnRightOutputs(TURN_RESTART_SPEED);
+    } else {
+      completeActiveMotion(
+          "EMERGENCY_STOP",
+          true
+      );
+      return;
+    }
+
     motionPhase = MotionPhase::RESTART_BOOST;
     motionPhaseDeadlineMs =
         currentTimeMs + FORWARD_RESTART_MS;
@@ -502,7 +639,29 @@ void serviceActiveMotion() {
           motionPhaseDeadlineMs
       )
   ) {
-    writeForwardOutputs(FORWARD_MOTION_SPEED);
+    if (
+        activeMotionCommand
+        == ActiveMotionCommand::MOVE_FORWARD
+    ) {
+      writeForwardOutputs(FORWARD_MOTION_SPEED);
+    } else if (
+        activeMotionCommand
+        == ActiveMotionCommand::TURN_LEFT
+    ) {
+      writeTurnLeftOutputs(TURN_MOTION_SPEED);
+    } else if (
+        activeMotionCommand
+        == ActiveMotionCommand::TURN_RIGHT
+    ) {
+      writeTurnRightOutputs(TURN_MOTION_SPEED);
+    } else {
+      completeActiveMotion(
+          "EMERGENCY_STOP",
+          true
+      );
+      return;
+    }
+
     motionPhase = MotionPhase::CRUISE;
     return;
   }
@@ -746,6 +905,32 @@ void handleRequest(char* line) {
         ) == 0
     ) {
       startBoundedForwardMotion(sequenceId);
+      return;
+    }
+
+    if (
+        strcmp(
+            commandType,
+            "TURN_LEFT"
+        ) == 0
+    ) {
+      startBoundedTurnMotion(
+          sequenceId,
+          ActiveMotionCommand::TURN_LEFT
+      );
+      return;
+    }
+
+    if (
+        strcmp(
+            commandType,
+            "TURN_RIGHT"
+        ) == 0
+    ) {
+      startBoundedTurnMotion(
+          sequenceId,
+          ActiveMotionCommand::TURN_RIGHT
+      );
       return;
     }
 
