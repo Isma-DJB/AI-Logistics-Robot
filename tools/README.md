@@ -165,9 +165,11 @@ right infrared, boundary-line, ultrasonic-distance, and light values. A missing
 ultrasonic echo is represented by `NONE`. Sensor inspection is available while
 safety remains latched and never rearms or activates the motors.
 
-The supervised firmware now accepts one bounded `MOVE_FORWARD` primitive.
-Exact 20 cm movement and cardinal rotations remain deliberately uncalibrated
-and belong to the separate cell-motion calibration stage.
+The supervised firmware accepts bounded `MOVE_FORWARD`, `TURN_LEFT`, and
+`TURN_RIGHT` primitives. The forward pulse does not independently certify a
+20 cm transition, and the coarse turn window does not independently certify a
+90-degree rotation. The host must confirm the resulting logical pose through
+the overhead camera.
 
 ## Fused Physical-Perception Diagnostic
 
@@ -239,3 +241,39 @@ After preflight it sends `REARM`, executes exactly one bounded
 `MOVE_FORWARD`, requires matching `ACK` and terminal `DONE|OK`, and always
 requests `ESTOP` during cleanup. Successful completion therefore ends in the
 confirmed `ESTOPPED/LATCHED` state.
+
+
+## Camera-Confirmed Motion Diagnostic
+
+`check_camera_confirmed_motion.py` composes fused physical perception,
+`PhysicalRobotControl`, and the supervised Arduino client. It accepts a motion
+as successful only when the post-command camera observation exactly matches
+the expected adjacent cell or cardinal heading.
+
+The diagnostic is prepared and validated offline. Its first live run must wait
+for a fully charged robot battery, a stable calibrated camera, clear local
+sensors, and direct operator supervision.
+
+The target lamp must remain off when automatic ambient calibration is used.
+Close the Arduino Serial Monitor and run exactly one command with:
+
+~~~powershell
+python tools\check_camera_confirmed_motion.py `
+    --url "http://192.168.1.109" `
+    --port "COM3" `
+    --command "TURN_LEFT" `
+    --confirm-ground-test `
+    --serial-timeout 5 `
+    --camera-timeout 15
+~~~
+
+The `--command` value must be `MOVE_FORWARD`, `TURN_LEFT`, or `TURN_RIGHT`.
+The tool refuses hardware access without `--confirm-ground-test`. It requires
+an initial `ESTOPPED/LATCHED` controller, performs fused pre-command
+perception, rearms explicitly, executes one bounded command, and always
+requests final `ESTOP`.
+
+A firmware `DONE|OK` alone is insufficient. The command succeeds only if the
+camera confirms the exact domain pose. A hazard, unexpected pose, serial
+failure, or unconfirmed result fails explicitly and preserves or restores the
+safety latch.

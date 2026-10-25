@@ -36,10 +36,15 @@ The current I-1.0 implementation includes:
 - a separate supervised firmware that boots in `ESTOPPED/LATCHED`;
 - supervised `STOP` execution with matching `ACK/DONE`, physically validated
   through both the serial monitor and the Python client;
-- bounded supervised `MOVE_FORWARD` execution with matching `ACK/DONE`,
-  immediate local safety intervention, and an automatic time bound;
+- bounded supervised `MOVE_FORWARD`, `TURN_LEFT`, and `TURN_RIGHT`
+  execution with matching `ACK/DONE`, local safety intervention, and absolute
+  time bounds;
 - an explicitly authorized Python bounded-motion diagnostic that verifies
   preflight sensors and restores `ESTOPPED/LATCHED`;
+- a physical `ControlPort` implementation that accepts success only after
+  exact camera confirmation of the expected grid cell and cardinal heading;
+- a guarded camera-confirmed motion diagnostic, validated offline and awaiting
+  its charged-battery physical run;
 - a read-only serial diagnostic physically validated on COM3;
 - read-only five-sensor telemetry and typed Python snapshots, physically
   validated while the controller remained `ESTOPPED/LATCHED`;
@@ -91,9 +96,11 @@ conditions, and ceiling-light illumination. Each run preserved confirmed
 ArUco pose, immutable timestamps, `ESTOPPED/LATCHED`, and complete motor
 immobility.
 
-Authorized target-cell arrival logic, calibrated 20 cm cell movement,
-calibrated cardinal rotations, and complete end-to-end V1 mission execution
-remain in progress.
+Charged-battery validation of camera-confirmed cell movement and cardinal
+turns, authorized target-cell arrival logic, and complete end-to-end V1 mission
+execution remain in progress. Exact open-loop trajectory precision is not a V1
+claim for this mechanically inconsistent chassis; every accepted physical step
+must instead end in the expected camera-confirmed cell and cardinal heading.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
@@ -177,8 +184,9 @@ headless application does not import Pygame, and the platform-independent core
 contains no direct graphical or hardware dependency.
 
 Physical hardware diagnostics and calibration are validated through I-0.9.
-Final camera-based perception, microcontroller communication, and
-end-to-end physical V1 integration remain assigned to I-1.0.
+I-1.0 now includes camera-based perception, supervised microcontroller motion,
+and offline-validated camera-confirmed physical control. Charged-battery
+control validation and end-to-end physical V1 integration remain in progress.
 
 ## Public status command
 
