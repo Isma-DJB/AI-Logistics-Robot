@@ -1,15 +1,16 @@
 #include <Arduino.h>
+#include <EEPROM.h>
 #include <string.h>
 
 // ============================================================
 // I-1.0 SUPERVISED SERIAL FIRMWARE
-// Safe handshake stage: no motion command is enabled.
+// Bounded-motion preparation: movement remains disabled.
 // ============================================================
-// Read-only sensor stage: no movement command is enabled.
+// Validated motor outputs are defined but never activated.
 
 const char PROTOCOL_NAME[] = "ALR";
 const char PROTOCOL_VERSION[] = "1";
-const char FIRMWARE_VERSION[] = "i-1.0-sensors-readonly";
+const char FIRMWARE_VERSION[] = "i-1.0-motion-prepared-disabled";
 
 const unsigned long MAX_SEQUENCE_ID = 2147483647UL;
 
@@ -25,6 +26,16 @@ const int A_1B = 5;
 const int A_1A = 6;
 const int B_1B = 9;
 const int B_1A = 10;
+
+const int MOTOR_OFFSET_MIN_PERCENT = 50;
+const int MOTOR_OFFSET_MAX_PERCENT = 100;
+
+// This is the physically validated I-0.9 cruising value.
+// It is not used while supervised movement remains disabled.
+const int FORWARD_MOTION_SPEED = 120;
+
+float motorAOffset = 1.0F;
+float motorBOffset = 1.0F;
 
 // ============================================================
 // SENSOR PINS VALIDATED DURING I-0.9
@@ -58,6 +69,62 @@ void stopMotors() {
   analogWrite(A_1B, 0);
   analogWrite(A_1A, 0);
   analogWrite(B_1B, 0);
+  analogWrite(B_1A, 0);
+}
+
+void loadMotorOffsets() {
+  const byte savedA = EEPROM.read(0);
+  const byte savedB = EEPROM.read(1);
+
+  if (
+      savedA >= MOTOR_OFFSET_MIN_PERCENT
+      && savedA <= MOTOR_OFFSET_MAX_PERCENT
+  ) {
+    motorAOffset = savedA / 100.0F;
+  } else {
+    motorAOffset = 1.0F;
+  }
+
+  if (
+      savedB >= MOTOR_OFFSET_MIN_PERCENT
+      && savedB <= MOTOR_OFFSET_MAX_PERCENT
+  ) {
+    motorBOffset = savedB / 100.0F;
+  } else {
+    motorBOffset = 1.0F;
+  }
+}
+
+int applyMotorOffset(
+    int speed,
+    float offset
+) {
+  const int scaledSpeed =
+      static_cast<int>(speed * offset);
+
+  return constrain(
+      scaledSpeed,
+      0,
+      255
+  );
+}
+
+void writeForwardOutputs(int speed) {
+  analogWrite(A_1B, 0);
+  analogWrite(
+      A_1A,
+      applyMotorOffset(
+          speed,
+          motorBOffset
+      )
+  );
+  analogWrite(
+      B_1B,
+      applyMotorOffset(
+          speed,
+          motorAOffset
+      )
+  );
   analogWrite(B_1A, 0);
 }
 
@@ -486,6 +553,7 @@ void setup() {
 
   digitalWrite(TRIG_PIN, LOW);
 
+  loadMotorOffsets();
   stopMotors();
 
   Serial.begin(SERIAL_BAUD_RATE);
