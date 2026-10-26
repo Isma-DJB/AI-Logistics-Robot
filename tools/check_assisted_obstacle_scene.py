@@ -242,6 +242,27 @@ def _load_frame(
     return frame
 
 
+
+def _authorized_goal_positions(
+    world: GridMap,
+    *,
+    phase: PathPhase,
+) -> tuple[Position, ...]:
+    """Select target-adjacent or base goal by mission phase."""
+
+    if phase is PathPhase.RETURN:
+        if not world.is_traversable(
+            world.base_position
+        ):
+            raise AssistedObstacleSceneError(
+                "physical base must remain traversable."
+            )
+
+        return (world.base_position,)
+
+    return _authorized_arrival_positions(world)
+
+
 def _authorized_arrival_positions(
     world: GridMap,
 ) -> tuple[Position, ...]:
@@ -293,6 +314,26 @@ def _is_inside_world(
         < minimum_y + world.height
     )
 
+
+
+
+def _evidence_stage(
+    *,
+    status: MissionEvidenceStatus,
+    phase: PathPhase,
+) -> str:
+    """Describe assisted outbound or return evidence."""
+
+    if phase is PathPhase.RETURN:
+        if status is MissionEvidenceStatus.COMPLETED:
+            return "base-return-confirmed"
+
+        return "operator-confirmed-return-replan"
+
+    if status is MissionEvidenceStatus.COMPLETED:
+        return "target-arrival-confirmed"
+
+    return "operator-confirmed-replan"
 
 
 def _evidence_status_for_plan(
@@ -417,15 +458,19 @@ def _run_diagnostic(
         evidence=reviewed_evidence,
     )
     world = obstacle_map.confirmed_world
-    arrivals = _authorized_arrival_positions(world)
+    phase = PathPhase(arguments.phase)
+    authorized_goals = _authorized_goal_positions(
+        world,
+        phase=phase,
+    )
 
     plan = AStarPlanner().create_plan(
         mission_id=arguments.scenario_id,
         robot_id=arguments.robot_id,
         start_pose=robot_pose,
-        authorized_goals=arrivals,
+        authorized_goals=authorized_goals,
         world=world,
-        phase=PathPhase(arguments.phase),
+        phase=phase,
         version=arguments.step_number,
     )
 
@@ -450,10 +495,9 @@ def _run_diagnostic(
     evidence = MissionEvidence(
         scenario_id=arguments.scenario_id,
         step_number=arguments.step_number,
-        stage=(
-            "target-arrival-confirmed"
-            if status is MissionEvidenceStatus.COMPLETED
-            else "operator-confirmed-replan"
+        stage=_evidence_stage(
+            status=status,
+            phase=phase,
         ),
         status=status,
         world=world,
@@ -587,7 +631,7 @@ def main(
     )
     print(f"Evidence status: {result.status.value}")
     print(
-        "Selected arrival: "
+        "Selected goal: "
         f"({result.plan.goal.x},{result.plan.goal.y})"
     )
     print(

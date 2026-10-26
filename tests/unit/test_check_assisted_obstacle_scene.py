@@ -7,6 +7,9 @@ from unittest.mock import patch
 
 import numpy as np
 
+from ai_logistics_robot.control.mission_evidence import (
+    MissionEvidenceStatus,
+)
 from ai_logistics_robot.control.physical_obstacle_evidence import (
     ObstacleEvidence,
     ObstacleEvidenceSource,
@@ -22,7 +25,9 @@ from ai_logistics_robot.domain.world import GridMap
 from tools.check_assisted_obstacle_scene import (
     AssistedObstacleSceneError,
     _authorized_arrival_positions,
+    _authorized_goal_positions,
     _build_observations,
+    _evidence_stage,
     _evidence_status_for_plan,
     _format_positions,
     _is_inside_world,
@@ -390,6 +395,56 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
         self.assertEqual(
             _evidence_status_for_plan(plan).value,
             "COMPLETED",
+        )
+
+
+
+    def test_return_goal_is_physical_base(self) -> None:
+        world = _world()
+
+        self.assertEqual(
+            _authorized_goal_positions(
+                world,
+                phase=PathPhase.RETURN,
+            ),
+            (
+                world.base_position,
+            ),
+        )
+
+    def test_outbound_goals_remain_target_adjacent(
+        self,
+    ) -> None:
+        world = _world()
+
+        self.assertEqual(
+            _authorized_goal_positions(
+                world,
+                phase=PathPhase.OUTBOUND,
+            ),
+            _authorized_arrival_positions(world),
+        )
+
+    def test_evidence_stage_describes_return_state(
+        self,
+    ) -> None:
+        self.assertEqual(
+            _evidence_stage(
+                status=(
+                    MissionEvidenceStatus.REPLANNED
+                ),
+                phase=PathPhase.RETURN,
+            ),
+            "operator-confirmed-return-replan",
+        )
+        self.assertEqual(
+            _evidence_stage(
+                status=(
+                    MissionEvidenceStatus.COMPLETED
+                ),
+                phase=PathPhase.RETURN,
+            ),
+            "base-return-confirmed",
         )
 
 
