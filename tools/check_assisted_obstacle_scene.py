@@ -34,12 +34,18 @@ from ai_logistics_robot.control.mission_evidence import (
     MissionEvidence,
     MissionEvidenceStatus,
 )
+from ai_logistics_robot.control.physical_motion_confirmation import (
+    required_heading_for_transition,
+)
 from ai_logistics_robot.control.physical_obstacle_evidence import (
     ObstacleEvidence,
     ObstacleEvidenceStatus,
     PhysicalObstacleMap,
 )
-from ai_logistics_robot.domain.enums import PathPhase
+from ai_logistics_robot.domain.enums import (
+    Heading,
+    PathPhase,
+)
 from ai_logistics_robot.domain.errors import DomainError
 from ai_logistics_robot.domain.geometry import (
     Position,
@@ -69,6 +75,7 @@ class AssistedObstacleSceneResult:
     plan: PathPlan
     status: MissionEvidenceStatus
     next_position: Position | None
+    next_heading: Heading | None
     output_path: Path
 
 
@@ -480,6 +487,14 @@ def _run_diagnostic(
         if len(plan.positions) > 1
         else None
     )
+    next_heading = (
+        None
+        if next_position is None
+        else required_heading_for_transition(
+            position_before=robot_pose.position,
+            position_after=next_position,
+        )
+    )
 
     snapshot = PerceptionSnapshot(
         robot_id=arguments.robot_id,
@@ -536,6 +551,7 @@ def _run_diagnostic(
         plan=plan,
         status=status,
         next_position=next_position,
+        next_heading=next_heading,
         output_path=arguments.output.resolve(),
     )
 
@@ -641,6 +657,14 @@ def main(
     print(
         "Next position: "
         f"{_format_positions(next_positions)}"
+    )
+    print(
+        "Next heading: "
+        + (
+            "none"
+            if result.next_heading is None
+            else result.next_heading.value
+        )
     )
     print(f"Annotated evidence: {result.output_path}")
     return 0

@@ -12,6 +12,44 @@ _CARDINAL_HEADINGS = (
 )
 
 
+
+def required_heading_for_transition(
+    *,
+    position_before: Position,
+    position_after: Position,
+) -> Heading:
+    """Return the heading required by one adjacent transition."""
+
+    if not isinstance(position_before, Position):
+        raise DomainValidationError(
+            "position_before must be a Position instance."
+        )
+
+    if not isinstance(position_after, Position):
+        raise DomainValidationError(
+            "position_after must be a Position instance."
+        )
+
+    displacement = (
+        position_after.x - position_before.x,
+        position_after.y - position_before.y,
+    )
+    heading_by_displacement = {
+        (0, 1): Heading.NORTH,
+        (1, 0): Heading.EAST,
+        (0, -1): Heading.SOUTH,
+        (-1, 0): Heading.WEST,
+    }
+
+    try:
+        return heading_by_displacement[displacement]
+    except KeyError as error:
+        raise DomainValidationError(
+            "positions must describe one cardinal adjacent "
+            "transition."
+        ) from error
+
+
 def expected_pose_after_command(
     *,
     pose_before: RobotPose,
