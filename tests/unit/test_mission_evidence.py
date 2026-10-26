@@ -7,6 +7,12 @@ from ai_logistics_robot.control.mission_evidence import (
     MissionEvidence,
     MissionEvidenceStatus,
 )
+from ai_logistics_robot.control.physical_obstacle_evidence import (
+    ObstacleEvidence,
+    ObstacleEvidenceSource,
+    ObstacleEvidenceStatus,
+    PhysicalObstacleMap,
+)
 from ai_logistics_robot.domain.enums import (
     Heading,
     PathPhase,
@@ -133,6 +139,67 @@ class MissionEvidenceTests(unittest.TestCase):
                     DomainValidationError
                 ):
                     self.build_evidence(**changes)
+
+    def test_matching_obstacle_map_is_retained(
+        self,
+    ) -> None:
+        obstacle_map = PhysicalObstacleMap(
+            base_world=self.world,
+            evidence=(
+                ObstacleEvidence(
+                    position=Position(x=3, y=2),
+                    source=ObstacleEvidenceSource.CAMERA,
+                    status=ObstacleEvidenceStatus.DETECTED,
+                    confidence=0.8,
+                ),
+            ),
+        )
+
+        evidence = self.build_evidence(
+            obstacle_map=obstacle_map,
+        )
+
+        self.assertIs(
+            evidence.obstacle_map,
+            obstacle_map,
+        )
+        self.assertEqual(
+            obstacle_map.confirmed_world,
+            self.world,
+        )
+
+    def test_obstacle_map_type_is_validated(
+        self,
+    ) -> None:
+        with self.assertRaises(
+            DomainValidationError
+        ):
+            self.build_evidence(
+                obstacle_map="invalid",
+            )
+
+    def test_obstacle_map_must_match_world(
+        self,
+    ) -> None:
+        obstacle_map = PhysicalObstacleMap(
+            base_world=self.world,
+            evidence=(
+                ObstacleEvidence(
+                    position=Position(x=3, y=2),
+                    source=ObstacleEvidenceSource.OPERATOR,
+                    status=ObstacleEvidenceStatus.CONFIRMED,
+                    confidence=1.0,
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            InvariantViolationError,
+            "must equal the confirmed",
+        ):
+            self.build_evidence(
+                obstacle_map=obstacle_map,
+            )
 
     def test_status_type_is_validated(self) -> None:
         with self.assertRaises(

@@ -12,6 +12,10 @@ from ai_logistics_robot.adapters.hardware.grid_calibration import (
 from ai_logistics_robot.control.mission_evidence import (
     MissionEvidence,
 )
+from ai_logistics_robot.control.physical_obstacle_evidence import (
+    ObstacleEvidenceSource,
+    ObstacleEvidenceStatus,
+)
 from ai_logistics_robot.domain.enums import Heading
 from ai_logistics_robot.domain.errors import (
     DomainValidationError,
@@ -23,6 +27,9 @@ _PLANNED_COLOR = (255, 0, 0)
 _CONFIRMED_COLOR = (0, 200, 0)
 _NEXT_COLOR = (0, 255, 255)
 _OBSTACLE_COLOR = (0, 0, 255)
+_DETECTED_OBSTACLE_COLOR = (0, 165, 255)
+_LOCAL_SENSOR_COLOR = (255, 255, 0)
+_CLEARED_COLOR = (0, 255, 0)
 _TARGET_COLOR = (255, 0, 255)
 _ROBOT_COLOR = (255, 255, 255)
 _GRID_COLOR = (180, 180, 180)
@@ -190,13 +197,47 @@ class MissionEvidenceRenderer:
 
         overlay = frame.copy()
 
-        for obstacle in evidence.world.obstacles:
+        evidenced_positions: frozenset[Position] = (
+            frozenset()
+        )
+        if evidence.obstacle_map is not None:
+            evidenced_positions = frozenset(
+                item.position
+                for item in evidence.obstacle_map.evidence
+            )
+
+        for obstacle in (
+            evidence.world.obstacles
+            - evidenced_positions
+        ):
             self._fill_cell(
                 overlay,
                 evidence,
                 obstacle,
                 _OBSTACLE_COLOR,
             )
+
+        if evidence.obstacle_map is not None:
+            for item in evidence.obstacle_map.evidence:
+                if (
+                    item.status
+                    is ObstacleEvidenceStatus.DETECTED
+                ):
+                    color = _DETECTED_OBSTACLE_COLOR
+                elif (
+                    item.status
+                    is ObstacleEvidenceStatus.CONFIRMED
+                ):
+                    color = _OBSTACLE_COLOR
+                else:
+                    continue
+
+                self._fill_cell(
+                    overlay,
+                    evidence,
+                    item.position,
+                    color,
+                )
 
         self._fill_cell(
             overlay,
@@ -213,6 +254,83 @@ class MissionEvidenceRenderer:
             0,
             dst=frame,
         )
+
+        self._draw_obstacle_evidence(
+            frame,
+            evidence,
+        )
+
+    def _draw_obstacle_evidence(
+        self,
+        frame: ImageArray,
+        evidence: MissionEvidence,
+    ) -> None:
+        """Draw obstacle source and validation borders."""
+
+        if evidence.obstacle_map is None:
+            return
+
+        for item in evidence.obstacle_map.evidence:
+            if (
+                item.status
+                is ObstacleEvidenceStatus.DETECTED
+            ):
+                color = _DETECTED_OBSTACLE_COLOR
+                label = "CAMERA"
+            elif (
+                item.status
+                is ObstacleEvidenceStatus.CLEARED
+            ):
+                color = _CLEARED_COLOR
+                label = "CLEARED"
+            elif (
+                item.source
+                is ObstacleEvidenceSource.LOCAL_SENSOR
+            ):
+                color = _LOCAL_SENSOR_COLOR
+                label = "SENSOR"
+            else:
+                color = _OBSTACLE_COLOR
+                label = "OPERATOR"
+
+            left, top, right, bottom = (
+                self._cell_bounds(
+                    evidence,
+                    item.position,
+                )
+            )
+            cv2.rectangle(
+                frame,
+                (left + 3, top + 3),
+                (right - 3, bottom - 3),
+                color,
+                4,
+                cv2.LINE_AA,
+            )
+            text_origin = (
+                left + 7,
+                bottom - 8,
+            )
+            cv2.putText(
+                frame,
+                label,
+                text_origin,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.36,
+                _TEXT_OUTLINE_COLOR,
+                3,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                frame,
+                label,
+                text_origin,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.36,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
 
     def _draw_grid(
         self,
@@ -395,6 +513,17 @@ class MissionEvidenceRenderer:
             second_label,
             (15, 63),
         )
+
+        if evidence.obstacle_map is not None:
+            legend = (
+                "obstacles: orange=detected "
+                "red=operator cyan=sensor green=cleared"
+            )
+            self._draw_text(
+                frame,
+                legend,
+                (15, 94),
+            )
 
     @staticmethod
     def _draw_text(

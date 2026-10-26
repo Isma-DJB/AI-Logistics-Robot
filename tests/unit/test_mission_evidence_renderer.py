@@ -7,6 +7,7 @@ import numpy as np
 
 from ai_logistics_robot.adapters.hardware.grid_calibration import (
     GridCalibration,
+    ImageArray,
 )
 from ai_logistics_robot.adapters.visualization.mission_evidence_renderer import (
     MissionEvidenceRenderer,
@@ -14,6 +15,12 @@ from ai_logistics_robot.adapters.visualization.mission_evidence_renderer import 
 from ai_logistics_robot.control.mission_evidence import (
     MissionEvidence,
     MissionEvidenceStatus,
+)
+from ai_logistics_robot.control.physical_obstacle_evidence import (
+    ObstacleEvidence,
+    ObstacleEvidenceSource,
+    ObstacleEvidenceStatus,
+    PhysicalObstacleMap,
 )
 from ai_logistics_robot.domain.enums import (
     Heading,
@@ -110,6 +117,39 @@ class MissionEvidenceRendererTests(unittest.TestCase):
         )
         self.renderer = MissionEvidenceRenderer(
             calibration=self.calibration,
+        )
+
+    def render_obstacle_evidence(
+        self,
+        item: ObstacleEvidence,
+    ) -> ImageArray:
+        obstacle_map = PhysicalObstacleMap(
+            base_world=self.world,
+            evidence=(item,),
+        )
+        evidence = MissionEvidence(
+            scenario_id="batch-e",
+            step_number=2,
+            stage="obstacle validation",
+            status=MissionEvidenceStatus.REPLANNED,
+            world=obstacle_map.confirmed_world,
+            perception=self.perception,
+            obstacle_map=obstacle_map,
+            confirmed_positions=(
+                self.perception.robot_pose.position,
+            ),
+        )
+        source = np.zeros(
+            (
+                self.calibration.output_height,
+                self.calibration.output_width,
+                3,
+            ),
+            dtype=np.uint8,
+        )
+        return self.renderer.render(
+            source,
+            evidence,
         )
 
     def test_renderer_retains_calibration(self) -> None:
@@ -299,6 +339,94 @@ class MissionEvidenceRendererTests(unittest.TestCase):
         self.assertGreater(
             int(next_border[2]),
             0,
+        )
+
+    def test_camera_detection_is_orange(
+        self,
+    ) -> None:
+        rendered = self.render_obstacle_evidence(
+            ObstacleEvidence(
+                position=Position(x=3, y=2),
+                source=ObstacleEvidenceSource.CAMERA,
+                status=ObstacleEvidenceStatus.DETECTED,
+                confidence=0.8,
+            )
+        )
+
+        center = rendered[74, 174]
+        self.assertGreater(
+            int(center[1]),
+            int(center[0]),
+        )
+        self.assertGreater(
+            int(center[2]),
+            int(center[1]),
+        )
+
+    def test_operator_confirmation_is_red(
+        self,
+    ) -> None:
+        rendered = self.render_obstacle_evidence(
+            ObstacleEvidence(
+                position=Position(x=3, y=2),
+                source=ObstacleEvidenceSource.OPERATOR,
+                status=ObstacleEvidenceStatus.CONFIRMED,
+                confidence=1.0,
+            )
+        )
+
+        center = rendered[74, 174]
+        self.assertGreater(
+            int(center[2]),
+            int(center[1]),
+        )
+        self.assertGreater(
+            int(center[2]),
+            int(center[0]),
+        )
+
+    def test_local_sensor_has_cyan_border(
+        self,
+    ) -> None:
+        rendered = self.render_obstacle_evidence(
+            ObstacleEvidence(
+                position=Position(x=3, y=2),
+                source=ObstacleEvidenceSource.LOCAL_SENSOR,
+                status=ObstacleEvidenceStatus.CONFIRMED,
+                confidence=1.0,
+            )
+        )
+
+        border = rendered[74, 153]
+        self.assertGreater(
+            int(border[0]),
+            0,
+        )
+        self.assertGreater(
+            int(border[1]),
+            0,
+        )
+
+    def test_cleared_cell_has_green_border(
+        self,
+    ) -> None:
+        rendered = self.render_obstacle_evidence(
+            ObstacleEvidence(
+                position=Position(x=2, y=2),
+                source=ObstacleEvidenceSource.OPERATOR,
+                status=ObstacleEvidenceStatus.CLEARED,
+                confidence=1.0,
+            )
+        )
+
+        border = rendered[74, 103]
+        self.assertGreater(
+            int(border[1]),
+            int(border[0]),
+        )
+        self.assertGreater(
+            int(border[1]),
+            int(border[2]),
         )
 
     def test_robot_heading_is_drawn(self) -> None:

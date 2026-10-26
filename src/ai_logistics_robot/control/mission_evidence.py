@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum, unique
 
+from ai_logistics_robot.control.physical_obstacle_evidence import (
+    PhysicalObstacleMap,
+)
 from ai_logistics_robot.domain.errors import (
     DomainValidationError,
     InvariantViolationError,
@@ -36,6 +39,7 @@ class MissionEvidence:
     status: MissionEvidenceStatus
     world: GridMap
     perception: PerceptionSnapshot
+    obstacle_map: PhysicalObstacleMap | None = None
     plan: PathPlan | None = None
     confirmed_positions: tuple[Position, ...] = ()
     next_position: Position | None = None
@@ -80,6 +84,28 @@ class MissionEvidence:
         ):
             raise DomainValidationError(
                 "perception must be a PerceptionSnapshot instance."
+            )
+
+        if (
+            self.obstacle_map is not None
+            and not isinstance(
+                self.obstacle_map,
+                PhysicalObstacleMap,
+            )
+        ):
+            raise DomainValidationError(
+                "obstacle_map must be a PhysicalObstacleMap "
+                "instance or None."
+            )
+
+        if (
+            self.obstacle_map is not None
+            and self.obstacle_map.confirmed_world
+            != self.world
+        ):
+            raise InvariantViolationError(
+                "evidence world must equal the confirmed "
+                "physical obstacle world."
             )
 
         if (
