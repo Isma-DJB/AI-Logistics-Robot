@@ -248,6 +248,16 @@ required.
 | `1c26258` | Camera-confirmed physical `ControlPort` |
 | `15a0cc7` | Guarded camera-confirmed motion diagnostic |
 | `eb24c5d` | Bounded retry for incomplete ESP32-CAM responses |
+| `7fc9fa5` | Assisted physical-mission evidence rendering |
+| `8ceea9e` | Validated physical obstacle evidence |
+| `b7d6426` | Physical obstacle-provenance visualization |
+| `45aa757` | Camera grid-cell change detection |
+| `f62a483` | Operator-reviewed physical replanning |
+| `296100e` | Hardened assisted physical replanning |
+| `d43356b` | Completed assisted target-arrival evidence |
+| `e3a7a47` | Assisted physical return planning |
+| `a42d9cd` | Derived assisted transition headings |
+| `10a9b1e` | Configurable assisted camera sensitivity |
 
 The Batch B physical-perception boundary now composes calibrated camera
 capture, ArUco localization, deterministic timestamps, and interpreted Arduino
@@ -288,6 +298,13 @@ insufficient forward movement were rejected and safely returned to
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
 remain optional vision dependencies, and PySerial remains an optional hardware
 dependency.
+
+Batch E is complete within the explicitly assisted physical-validation
+boundary. The operator supplied the physical displacement that the current
+chassis cannot repeat reliably; the software supplied every requested cell and
+heading, rejected unobservable frames, retained confirmed obstacles, replanned
+both phases, confirmed target collection, and terminated only after exact base
+localization.
 
 ## 9. Current Verification Record
 
@@ -357,9 +374,21 @@ validation was performed on 2026-10-05.
 | Insufficient 250 ms `MOVE_FORWARD` | Safely rejected; about 11 pixels, same logical cell |
 | Final safety state after every live diagnostic | Passed: `ESTOPPED/LATCHED` |
 | Interrupted ESP32-CAM response recovery | Passed: three bounded attempts |
-| Complete automated test suite | Passed: 583 tests |
+| Stable lamp-on obstacle reference | Passed: two captures, zero changed cells |
+| Physical camera obstacle proposals | Passed: five operator-confirmed cells |
+| Persistent-obstacle A* replanning | Passed across all accepted mission stages |
+| Automatic transition heading derivation | Passed for all four cardinal directions |
+| Assisted outbound mission | Passed: `(0,0) NORTH` to `(3,4) NORTH` |
+| Unobservable planned arrival | Safely rejected: target-lamp glare at `(4,3)` |
+| Alternative authorized arrival | Passed: terminal outbound `COMPLETED` |
+| Target collection evidence | Passed: `(4,4)` light-off confidence `0.771` |
+| Independent assisted return | Passed: `(3,4)` to `(0,0)` |
+| Near-dark localization recovery | Passed after diffuse room lighting |
+| Final assisted mission state | Passed: `(0,0) WEST`, `COMPLETED` |
+| Sixteen-stage visual evidence | Passed: one 4 by 4 and two 4 by 2 storyboards |
+| Complete automated test suite | Passed: 677 tests |
 | `python -m ruff check .` | Passed |
-| `python -m mypy src` plus guarded diagnostic checks | Passed: 63 source files |
+| `python -m mypy src` plus guarded diagnostic checks | Passed: 68 source files |
 | `python -m pip check` | Passed: no broken requirements |
 | `python -m build` | Passed: source archive and wheel created |
 
@@ -513,13 +542,29 @@ unverified software claims.
 
 ### Batch E - End-to-End Physical V1
 
-- execute planned outbound paths;
-- replan around physical obstacles;
-- stop in an authorized cell near the illuminated target;
-- simulate collection while stationary;
-- return through confirmed physical poses;
-- stop safely after hazards or communication loss;
-- repeat complete missions without restarting the software.
+- [x] execute an assisted planned outbound path from physical base `(0,0)`;
+- [x] detect camera scene changes and require explicit obstacle review;
+- [x] retain five confirmed physical obstacles across every replan;
+- [x] derive the required cardinal heading for each adjacent transition;
+- [x] reject missing ArUco observations without fabricating a pose;
+- [x] reject an optically unobservable planned arrival;
+- [x] complete at an alternative authorized target-adjacent cell;
+- [x] confirm collection through the target-lamp state transition;
+- [x] calculate an independent obstacle-aware return path;
+- [x] recover localization after an ambient-light change;
+- [x] confirm final return to physical base with terminal `COMPLETED`;
+- [x] preserve sixteen annotated stages as public visual evidence.
+
+The validated scene used target `(4,4)` and obstacles `(0,2)`, `(2,0)`,
+`(2,1)`, `(4,2)`, and `(2,4)`. Outbound confirmation ended at alternative
+authorized arrival `(3,4) NORTH` after lamp glare made planned arrival `(4,3)`
+unobservable. Collection was confirmed by the target light-off transition.
+Return planning then followed a distinct route and completed at `(0,0) WEST`.
+
+This is an assisted physical software-validation scenario, not a claim of
+repeatable autonomous chassis motion. The operator performed each requested
+physical displacement; the software performed perception, validation,
+planning, heading derivation, rejection, replanning, and completion.
 
 ## 11. Known Limitations
 
@@ -537,8 +582,9 @@ The current I-1.0 implementation has these explicit limitations:
   absorbed and require a fresh lamp-off calibration;
 - insufficient grid illumination can cause a transient ArUco miss, which is
   rejected explicitly rather than converted into a fabricated pose;
-- global camera-based obstacle and target localization is not yet implemented;
-  current obstacle, boundary, and target facts come from local Arduino sensors;
+- camera cell-change detection proposes possible obstacles but deliberately
+  requires operator confirmation before modifying the planning world; it does
+  not claim autonomous semantic obstacle classification;
 - bounded forward and turn primitives are connected through the physical
   `ControlPort`, but physical success still requires charged-battery camera
   confirmation;
@@ -553,7 +599,9 @@ The current I-1.0 implementation has these explicit limitations:
 - exact 20 cm movements and 90-degree rotations remain uncalibrated;
 - the validated I-0.9 autonomous firmware remains preserved as an experimental
   baseline and is not modified by I-1.0;
-- end-to-end planned physical path execution is not yet available.
+- assisted end-to-end physical software execution is validated, while
+  repeatable motor-driven execution of the same exact paths remains unavailable
+  on the current chassis.
 
 ## 12. I-1.0 Exit Conditions
 
@@ -582,9 +630,9 @@ The current I-1.0 implementation has these explicit limitations:
   forward and right-turn outcomes.
 - [x] Document that repeatable precision requires a better-adapted robot.
 - [x] Integrate physical target and obstacle observations.
-- [ ] Execute complete outbound, collection, and return missions.
-- [ ] Run complete physical V1 regression scenarios.
-- [ ] Update the public README and command-line status.
+- [x] Execute a complete assisted outbound, collection, and return mission.
+- [x] Run complete physical V1 regression scenarios.
+- [x] Update the public README and command-line status.
 - [ ] Review and merge the I-1.0 pull request.
 
 I-1.0 remains in progress until every physical integration and repository

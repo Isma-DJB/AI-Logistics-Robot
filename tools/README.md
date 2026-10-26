@@ -286,3 +286,52 @@ Multiple I-0.9 motor changes and calibration attempts did not eliminate it.
 The diagnostic must therefore be interpreted as a software supervision and
 pose-confirmation tool, not as a guarantee that this particular chassis can
 repeat every requested trajectory.
+
+## Assisted Physical-Mission Evidence Diagnostic
+
+`check_assisted_obstacle_scene.py` reviews physical grid changes, retains
+operator-confirmed obstacles, replans from the current camera-confirmed pose,
+derives the required next heading, and renders annotated Batch E evidence.
+
+Camera proposals never become planning obstacles automatically. Every proposal
+must be passed through `--confirm-obstacle` or `--clear-proposal`. Previously
+confirmed cells are retained with repeatable `--existing-obstacle` arguments.
+The target cell itself is non-traversable; outbound goals are its traversable
+cardinal neighbours, while `RETURN` selects the configured physical base.
+
+The detector retains a conservative changed-cell default of `0.12`.
+`--minimum-changed-fraction` allows an explicitly reviewed scene to use another
+finite fraction in the interval `]0,1]`. A separate scene-wide drift guard
+rejects excessive visual change and requires a fresh same-state reference.
+
+Example initial review for the validated final scene:
+
+~~~powershell
+python tools\check_assisted_obstacle_scene.py `
+    --reference "artifacts\i-1.0\batch-e-final-scene-reference-02-2026-10-26.jpg" `
+    --current "artifacts\i-1.0\batch-e-final-scene-initial-2026-10-26.jpg" `
+    --output "artifacts\i-1.0\batch-e-final-outbound-step-01-accepted-2026-10-26.jpg" `
+    --target-position "4,4" `
+    --minimum-changed-fraction 0.06 `
+    --confirm-obstacle "0,2" `
+    --confirm-obstacle "2,0" `
+    --confirm-obstacle "2,1" `
+    --confirm-obstacle "4,2" `
+    --confirm-obstacle "2,4" `
+    --clear-proposal "0,1" `
+    --target-active `
+    --phase "OUTBOUND" `
+    --scenario-id "batch-e-final-mission" `
+    --step-number 1
+~~~
+
+Subsequent stages use the new frame as both `--reference` and `--current`,
+retain the five cells through `--existing-obstacle`, and select either
+`OUTBOUND` or `RETURN`. A one-position plan produces `COMPLETED`; otherwise the
+tool reports the next position and heading as `REPLANNED`.
+
+The validated sixteen-stage scenario used manual physical repositioning because
+the current chassis cannot guarantee exact cell motion. The software still
+owned all perception, obstacle-state validation, A* planning, heading
+derivation, fail-safe rejection, target-arrival selection, collection evidence,
+return replanning, and final completion decisions.
