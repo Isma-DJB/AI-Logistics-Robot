@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress |
+| Status | Complete |
 | Date | 2026-10-03 |
+| Completed | 2026-10-26 |
 | Repository branch | `implementation/i-1.0` |
 
 ## 1. Objective
@@ -633,7 +634,7 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Execute a complete assisted outbound, collection, and return mission.
 - [x] Run complete physical V1 regression scenarios.
 - [x] Update the public README and command-line status.
-- [ ] Review and merge the I-1.0 pull request.
+- [x] Review and merge the I-1.0 pull request.
 
-I-1.0 remains in progress until every physical integration and repository
-closure condition is complete.
+I-1.0 is complete. Every physical-integration and repository closure
+condition has been satisfied.
