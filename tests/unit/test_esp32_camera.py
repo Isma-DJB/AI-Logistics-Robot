@@ -1,6 +1,7 @@
 """Unit tests for the ESP32-CAM HTTP capture adapter."""
 
 import unittest
+from http.client import IncompleteRead
 
 from ai_logistics_robot.adapters.hardware.esp32_camera import (
     Esp32CameraClient,
@@ -147,6 +148,75 @@ class Esp32CameraClientTests(unittest.TestCase):
                     "complete JPEG",
                 ):
                     client.capture_jpeg()
+
+    def test_incomplete_reads_are_retried(self) -> None:
+        attempts = 0
+        expected_frame = b"\xff\xd8camera-frame\xff\xd9"
+
+        def intermittently_failing_fetcher(
+            url: str,
+            timeout_seconds: float,
+        ) -> bytes:
+            nonlocal attempts
+            del url
+            del timeout_seconds
+            attempts += 1
+
+            if attempts < 3:
+                raise IncompleteRead(
+                    b"\xff\xd8partial",
+                    12,
+                )
+
+            return expected_frame
+
+        client = Esp32CameraClient(
+            base_url="http://camera.local",
+            fetcher=intermittently_failing_fetcher,
+        )
+
+        self.assertEqual(
+            client.capture_jpeg(),
+            expected_frame,
+        )
+        self.assertEqual(
+            attempts,
+            3,
+        )
+
+    def test_repeated_incomplete_reads_are_translated(
+        self,
+    ) -> None:
+        attempts = 0
+
+        def incomplete_fetcher(
+            url: str,
+            timeout_seconds: float,
+        ) -> bytes:
+            nonlocal attempts
+            del url
+            del timeout_seconds
+            attempts += 1
+            raise IncompleteRead(
+                b"\xff\xd8partial",
+                12,
+            )
+
+        client = Esp32CameraClient(
+            base_url="http://camera.local",
+            fetcher=incomplete_fetcher,
+        )
+
+        with self.assertRaisesRegex(
+            Esp32CameraError,
+            "three incomplete responses",
+        ):
+            client.capture_jpeg()
+
+        self.assertEqual(
+            attempts,
+            3,
+        )
 
     def test_connection_failure_is_translated(self) -> None:
         def failing_fetcher(

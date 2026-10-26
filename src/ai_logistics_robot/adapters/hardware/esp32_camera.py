@@ -1,6 +1,7 @@
 """HTTP capture adapter for one fixed overhead ESP32-CAM."""
 
 from collections.abc import Callable
+from http.client import IncompleteRead
 from math import isfinite
 from urllib.parse import urlsplit
 from urllib.request import urlopen
@@ -8,6 +9,8 @@ from urllib.request import urlopen
 from ai_logistics_robot.domain.errors import DomainValidationError
 
 FrameFetcher = Callable[[str, float], bytes]
+
+_INCOMPLETE_READ_ATTEMPTS = 3
 
 
 class Esp32CameraError(RuntimeError):
@@ -116,17 +119,35 @@ class Esp32CameraClient:
     def capture_jpeg(self) -> bytes:
         """Download and validate one complete JPEG frame."""
 
-        try:
-            payload = self._fetcher(
-                self.capture_url,
-                self._timeout_seconds,
-            )
-        except Esp32CameraError:
-            raise
-        except OSError as error:
-            raise Esp32CameraError(
-                "ESP32-CAM capture request failed."
-            ) from error
+        payload = b""
+
+        for attempt_index in range(
+            _INCOMPLETE_READ_ATTEMPTS
+        ):
+            try:
+                payload = self._fetcher(
+                    self.capture_url,
+                    self._timeout_seconds,
+                )
+            except Esp32CameraError:
+                raise
+            except IncompleteRead as error:
+                if (
+                    attempt_index
+                    == _INCOMPLETE_READ_ATTEMPTS - 1
+                ):
+                    raise Esp32CameraError(
+                        "ESP32-CAM capture request failed "
+                        "after three incomplete responses."
+                    ) from error
+
+                continue
+            except OSError as error:
+                raise Esp32CameraError(
+                    "ESP32-CAM capture request failed."
+                ) from error
+
+            break
 
         if (
             not isinstance(payload, bytes)
