@@ -1,4 +1,4 @@
-"""Unit tests for the public I-0.8 software status."""
+"""Unit tests for the public I-1.0 integration status."""
 
 import subprocess
 import sys
@@ -23,7 +23,7 @@ class CommandLineStatusTests(unittest.TestCase):
     def setUp(self) -> None:
         self.project_root = Path(__file__).resolve().parents[2]
 
-    def test_main_reports_completed_i_0_8_capabilities(
+    def test_main_reports_validated_i_1_0_capabilities(
         self,
     ) -> None:
         output = StringIO()
@@ -35,7 +35,7 @@ class CommandLineStatusTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn(
-            "Implementation Draft I-0.8",
+            "Implementation Draft I-1.0",
             status_text,
         )
         self.assertIn(
@@ -60,11 +60,11 @@ class CommandLineStatusTests(unittest.TestCase):
             status_text.lower(),
         )
         self.assertIn(
-            "validated through I-0.9",
+            "camera-confirmed physical outcomes",
             status_text,
         )
         self.assertIn(
-            "remain assigned to I-1.0",
+            "assisted end-to-end physical V1 mission",
             status_text,
         )
         self.assertNotIn(
@@ -102,7 +102,7 @@ class CommandLineStatusTests(unittest.TestCase):
         )
         self.assertEqual(result.stderr, "")
         self.assertIn(
-            "Implementation Draft I-0.8",
+            "Implementation Draft I-1.0",
             result.stdout,
         )
         self.assertIn(
@@ -154,7 +154,7 @@ class CommandLineStatusTests(unittest.TestCase):
             "ai_logistics_robot.__main__:main",
         )
 
-    def test_readme_reports_complete_simulation_software(
+    def test_readme_reports_validated_i_1_0_status(
         self,
     ) -> None:
         readme = (
@@ -163,7 +163,8 @@ class CommandLineStatusTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn(
-            "Implementation Draft I-0.8",
+            "I-1.0 physical vision and assisted "
+            "end-to-end integration - Validated",
             readme,
         )
         self.assertIn(
@@ -171,7 +172,7 @@ class CommandLineStatusTests(unittest.TestCase):
             readme,
         )
         self.assertIn(
-            "370 automated tests",
+            "677 automated tests",
             readme,
         )
         self.assertIn(
