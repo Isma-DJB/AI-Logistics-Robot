@@ -103,6 +103,24 @@ def _parse_position(value: str) -> Position:
     )
 
 
+def _parse_unit_fraction(value: str) -> float:
+    """Parse one finite command-line fraction in ]0,1]."""
+
+    try:
+        parsed_value = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "fraction must be numeric."
+        ) from error
+
+    if not 0.0 < parsed_value <= 1.0:
+        raise argparse.ArgumentTypeError(
+            "fraction must be greater than 0 and at most 1."
+        )
+
+    return parsed_value
+
+
 def build_parser() -> ArgumentParser:
     """Build the guarded offline diagnostic parser."""
 
@@ -193,6 +211,15 @@ def build_parser() -> ArgumentParser:
         help=(
             "Previously confirmed obstacle retained as x,y. "
             "Repeat for multiple persistent obstacles."
+        ),
+    )
+    parser.add_argument(
+        "--minimum-changed-fraction",
+        type=_parse_unit_fraction,
+        default=0.12,
+        help=(
+            "Minimum changed pixel fraction required for one "
+            "camera cell proposal. Default: 0.12."
         ),
     )
     parser.add_argument(
@@ -412,6 +439,9 @@ def _run_diagnostic(
 
     proposals = GridCellChangeDetector(
         calibration=calibration,
+        minimum_changed_fraction=(
+            arguments.minimum_changed_fraction
+        ),
     ).detect(
         reference_frame,
         current_frame,

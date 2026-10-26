@@ -33,6 +33,7 @@ from tools.check_assisted_obstacle_scene import (
     _is_inside_world,
     _load_frame,
     _parse_position,
+    _parse_unit_fraction,
     build_parser,
     main,
 )
@@ -96,6 +97,50 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
                 ):
                     _parse_position(invalid_value)
 
+    def test_unit_fraction_parser_accepts_valid_values(
+        self,
+    ) -> None:
+        self.assertEqual(_parse_unit_fraction("0.06"), 0.06)
+        self.assertEqual(_parse_unit_fraction("1"), 1.0)
+
+    def test_unit_fraction_parser_rejects_invalid_values(
+        self,
+    ) -> None:
+        invalid_values = (
+            "0",
+            "-0.1",
+            "1.1",
+            "nan",
+            "inf",
+            "invalid",
+        )
+
+        for invalid_value in invalid_values:
+            with self.subTest(invalid_value=invalid_value):
+                with self.assertRaises(
+                    argparse.ArgumentTypeError
+                ):
+                    _parse_unit_fraction(invalid_value)
+
+    def test_minimum_changed_fraction_defaults_to_conservative_value(
+        self,
+    ) -> None:
+        arguments = build_parser().parse_args(
+            [
+                "--reference",
+                "reference.jpg",
+                "--current",
+                "current.jpg",
+                "--output",
+                "output.jpg",
+            ]
+        )
+
+        self.assertEqual(
+            arguments.minimum_changed_fraction,
+            0.12,
+        )
+
     def test_parser_collects_repeated_operator_decisions(
         self,
     ) -> None:
@@ -115,6 +160,8 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
                 "3,4",
                 "--existing-obstacle",
                 "4,1",
+                "--minimum-changed-fraction",
+                "0.06",
                 "--maximum-changed-cell-fraction",
                 "0.3",
                 "--target-active",
@@ -143,6 +190,10 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
             [
                 Position(x=4, y=1),
             ],
+        )
+        self.assertEqual(
+            arguments.minimum_changed_fraction,
+            0.06,
         )
         self.assertEqual(
             arguments.maximum_changed_cell_fraction,
