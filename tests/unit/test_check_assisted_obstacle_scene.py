@@ -12,15 +12,18 @@ from ai_logistics_robot.control.physical_obstacle_evidence import (
     ObstacleEvidenceSource,
     ObstacleEvidenceStatus,
 )
+from ai_logistics_robot.domain.enums import PathPhase
 from ai_logistics_robot.domain.errors import (
     DomainValidationError,
 )
 from ai_logistics_robot.domain.geometry import Position
+from ai_logistics_robot.domain.paths import PathPlan
 from ai_logistics_robot.domain.world import GridMap
 from tools.check_assisted_obstacle_scene import (
     AssistedObstacleSceneError,
     _authorized_arrival_positions,
     _build_observations,
+    _evidence_status_for_plan,
     _format_positions,
     _is_inside_world,
     _load_frame,
@@ -351,6 +354,44 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
                 base_position=Position(x=0, y=0),
                 target_position=Position(x=2, y=2),
             )
+
+
+    def test_multi_position_plan_is_replanned(
+        self,
+    ) -> None:
+        plan = PathPlan(
+            mission_id="mission-1",
+            robot_id="robot-1",
+            phase=PathPhase.OUTBOUND,
+            version=1,
+            positions=(
+                Position(x=4, y=4),
+                Position(x=5, y=4),
+            ),
+            goal=Position(x=5, y=4),
+        )
+
+        self.assertEqual(
+            _evidence_status_for_plan(plan).value,
+            "REPLANNED",
+        )
+
+    def test_goal_only_plan_is_completed(self) -> None:
+        goal = Position(x=5, y=4)
+        plan = PathPlan(
+            mission_id="mission-1",
+            robot_id="robot-1",
+            phase=PathPhase.OUTBOUND,
+            version=2,
+            positions=(goal,),
+            goal=goal,
+        )
+
+        self.assertEqual(
+            _evidence_status_for_plan(plan).value,
+            "COMPLETED",
+        )
+
 
 
 if __name__ == "__main__":

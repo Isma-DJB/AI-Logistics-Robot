@@ -67,6 +67,7 @@ class AssistedObstacleSceneResult:
     reviewed_evidence: tuple[ObstacleEvidence, ...]
     obstacle_map: PhysicalObstacleMap
     plan: PathPlan
+    status: MissionEvidenceStatus
     next_position: Position | None
     output_path: Path
 
@@ -293,6 +294,18 @@ def _is_inside_world(
     )
 
 
+
+def _evidence_status_for_plan(
+    plan: PathPlan,
+) -> MissionEvidenceStatus:
+    """Complete evidence when the robot already occupies its goal."""
+
+    if len(plan.positions) == 1:
+        return MissionEvidenceStatus.COMPLETED
+
+    return MissionEvidenceStatus.REPLANNED
+
+
 def _build_observations(
     evidence: tuple[ObstacleEvidence, ...],
 ) -> tuple[Observation, ...]:
@@ -416,6 +429,7 @@ def _run_diagnostic(
         version=arguments.step_number,
     )
 
+    status = _evidence_status_for_plan(plan)
     next_position = (
         plan.positions[1]
         if len(plan.positions) > 1
@@ -436,8 +450,12 @@ def _run_diagnostic(
     evidence = MissionEvidence(
         scenario_id=arguments.scenario_id,
         step_number=arguments.step_number,
-        stage="operator-confirmed-replan",
-        status=MissionEvidenceStatus.REPLANNED,
+        stage=(
+            "target-arrival-confirmed"
+            if status is MissionEvidenceStatus.COMPLETED
+            else "operator-confirmed-replan"
+        ),
+        status=status,
         world=world,
         perception=snapshot,
         obstacle_map=obstacle_map,
@@ -472,6 +490,7 @@ def _run_diagnostic(
         reviewed_evidence=reviewed_evidence,
         obstacle_map=obstacle_map,
         plan=plan,
+        status=status,
         next_position=next_position,
         output_path=arguments.output.resolve(),
     )
@@ -566,6 +585,7 @@ def main(
         "Confirmed planning obstacles: "
         f"{_format_positions(planning_obstacles)}"
     )
+    print(f"Evidence status: {result.status.value}")
     print(
         "Selected arrival: "
         f"({result.plan.goal.x},{result.plan.goal.y})"
