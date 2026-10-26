@@ -26,6 +26,8 @@ from ai_logistics_robot.adapters.visualization.mission_evidence_renderer import 
     MissionEvidenceRenderer,
 )
 from ai_logistics_robot.control.assisted_obstacle_review import (
+    merge_persistent_obstacle_evidence,
+    require_localized_camera_proposals,
     review_obstacle_proposals,
 )
 from ai_logistics_robot.control.mission_evidence import (
@@ -172,6 +174,26 @@ def build_parser() -> ArgumentParser:
         help=(
             "Camera proposal rejected by the operator as x,y. "
             "Repeat for multiple shadows or false positives."
+        ),
+    )
+
+    parser.add_argument(
+        "--existing-obstacle",
+        action="append",
+        type=_parse_position,
+        default=[],
+        help=(
+            "Previously confirmed obstacle retained as x,y. "
+            "Repeat for multiple persistent obstacles."
+        ),
+    )
+    parser.add_argument(
+        "--maximum-changed-cell-fraction",
+        type=float,
+        default=0.25,
+        help=(
+            "Maximum accepted fraction of observable cells "
+            "with camera changes. Default: 0.25."
         ),
     )
     parser.add_argument(
@@ -340,7 +362,26 @@ def _run_diagnostic(
         ),
     )
 
-    reviewed_evidence = review_obstacle_proposals(
+    excluded_positions = frozenset(
+        {
+            robot_pose.position,
+            arguments.target_position,
+        }
+    )
+    observable_cell_count = (
+        calibration.columns * calibration.rows
+        - len(excluded_positions)
+    )
+
+    require_localized_camera_proposals(
+        proposals=proposals,
+        observable_cell_count=observable_cell_count,
+        maximum_changed_fraction=(
+            arguments.maximum_changed_cell_fraction
+        ),
+    )
+
+    current_review = review_obstacle_proposals(
         proposals=proposals,
         confirmed_positions=frozenset(
             arguments.confirm_obstacle
@@ -348,6 +389,14 @@ def _run_diagnostic(
         cleared_positions=frozenset(
             arguments.clear_proposal
         ),
+    )
+    reviewed_evidence = (
+        merge_persistent_obstacle_evidence(
+            existing_confirmed_positions=frozenset(
+                arguments.existing_obstacle
+            ),
+            reviewed_evidence=current_review,
+        )
     )
 
     obstacle_map = PhysicalObstacleMap(

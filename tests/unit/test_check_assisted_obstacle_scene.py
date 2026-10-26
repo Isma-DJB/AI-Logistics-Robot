@@ -105,6 +105,10 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
                 "1,3",
                 "--clear-proposal",
                 "3,4",
+                "--existing-obstacle",
+                "4,1",
+                "--maximum-changed-cell-fraction",
+                "0.3",
                 "--target-active",
             ]
         )
@@ -125,6 +129,16 @@ class AssistedObstacleSceneToolTests(unittest.TestCase):
                 Position(x=1, y=3),
                 Position(x=3, y=4),
             ],
+        )
+        self.assertEqual(
+            arguments.existing_obstacle,
+            [
+                Position(x=4, y=1),
+            ],
+        )
+        self.assertEqual(
+            arguments.maximum_changed_cell_fraction,
+            0.3,
         )
         self.assertTrue(arguments.target_active)
 

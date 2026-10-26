@@ -3,6 +3,8 @@
 import unittest
 
 from ai_logistics_robot.control.assisted_obstacle_review import (
+    merge_persistent_obstacle_evidence,
+    require_localized_camera_proposals,
     review_obstacle_proposals,
 )
 from ai_logistics_robot.control.physical_obstacle_evidence import (
@@ -326,6 +328,191 @@ class AssistedObstacleReviewTests(unittest.TestCase):
                     }
                 ),
             )
+
+
+    def test_localized_proposals_are_accepted(self) -> None:
+        require_localized_camera_proposals(
+            proposals=(
+                _proposal(1, 2),
+                _proposal(3, 4),
+            ),
+            observable_cell_count=47,
+            maximum_changed_fraction=0.25,
+        )
+
+    def test_scene_wide_visual_drift_is_rejected(
+        self,
+    ) -> None:
+        proposals = tuple(
+            _proposal(
+                index % 7,
+                index // 7,
+            )
+            for index in range(38)
+        )
+
+        with self.assertRaisesRegex(
+            InvariantViolationError,
+            "scene-wide visual drift",
+        ):
+            require_localized_camera_proposals(
+                proposals=proposals,
+                observable_cell_count=47,
+                maximum_changed_fraction=0.25,
+            )
+
+    def test_visual_drift_threshold_is_strict(
+        self,
+    ) -> None:
+        require_localized_camera_proposals(
+            proposals=(
+                _proposal(1, 2),
+            ),
+            observable_cell_count=4,
+            maximum_changed_fraction=0.25,
+        )
+
+    def test_visual_drift_arguments_are_validated(
+        self,
+    ) -> None:
+        invalid_cell_counts = (
+            0,
+            -1,
+            True,
+            1.5,
+        )
+
+        for invalid_count in invalid_cell_counts:
+            with self.subTest(
+                invalid_count=invalid_count,
+            ):
+                with self.assertRaises(
+                    DomainValidationError
+                ):
+                    require_localized_camera_proposals(
+                        proposals=(),
+                        observable_cell_count=invalid_count,  # type: ignore[arg-type]
+                    )
+
+        invalid_fractions = (
+            0,
+            -0.1,
+            1.1,
+            float("inf"),
+            float("nan"),
+            True,
+        )
+
+        for invalid_fraction in invalid_fractions:
+            with self.subTest(
+                invalid_fraction=invalid_fraction,
+            ):
+                with self.assertRaises(
+                    DomainValidationError
+                ):
+                    require_localized_camera_proposals(
+                        proposals=(),
+                        observable_cell_count=49,
+                        maximum_changed_fraction=invalid_fraction,
+                    )
+
+    def test_persistent_obstacles_are_retained(
+        self,
+    ) -> None:
+        persistent = Position(x=1, y=2)
+        reviewed = ObstacleEvidence(
+            position=Position(x=3, y=4),
+            source=ObstacleEvidenceSource.OPERATOR,
+            status=ObstacleEvidenceStatus.CLEARED,
+            confidence=0.4,
+        )
+
+        merged = merge_persistent_obstacle_evidence(
+            existing_confirmed_positions=frozenset(
+                {
+                    persistent,
+                }
+            ),
+            reviewed_evidence=(reviewed,),
+        )
+
+        self.assertEqual(
+            tuple(
+                item.position
+                for item in merged
+            ),
+            (
+                persistent,
+                reviewed.position,
+            ),
+        )
+        self.assertEqual(
+            merged[0].status,
+            ObstacleEvidenceStatus.CONFIRMED,
+        )
+        self.assertEqual(
+            merged[0].confidence,
+            1.0,
+        )
+
+    def test_review_can_clear_persistent_obstacle(
+        self,
+    ) -> None:
+        persistent = Position(x=1, y=2)
+        cleared = ObstacleEvidence(
+            position=persistent,
+            source=ObstacleEvidenceSource.OPERATOR,
+            status=ObstacleEvidenceStatus.CLEARED,
+            confidence=0.8,
+        )
+
+        merged = merge_persistent_obstacle_evidence(
+            existing_confirmed_positions=frozenset(
+                {
+                    persistent,
+                }
+            ),
+            reviewed_evidence=(cleared,),
+        )
+
+        self.assertEqual(merged, (cleared,))
+
+    def test_review_can_refresh_persistent_obstacle(
+        self,
+    ) -> None:
+        persistent = Position(x=1, y=2)
+        confirmed = ObstacleEvidence(
+            position=persistent,
+            source=ObstacleEvidenceSource.OPERATOR,
+            status=ObstacleEvidenceStatus.CONFIRMED,
+            confidence=0.9,
+        )
+
+        merged = merge_persistent_obstacle_evidence(
+            existing_confirmed_positions=frozenset(
+                {
+                    persistent,
+                }
+            ),
+            reviewed_evidence=(confirmed,),
+        )
+
+        self.assertEqual(merged, (confirmed,))
+
+    def test_persistent_merge_requires_operator_review(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            InvariantViolationError,
+            "OPERATOR decision",
+        ):
+            merge_persistent_obstacle_evidence(
+                existing_confirmed_positions=frozenset(),
+                reviewed_evidence=(
+                    _proposal(1, 2),
+                ),
+            )
+
 
 
 if __name__ == "__main__":

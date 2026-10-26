@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from math import isfinite
+
 from ai_logistics_robot.control.physical_obstacle_evidence import (
     ObstacleEvidence,
     ObstacleEvidenceSource,
@@ -87,6 +89,146 @@ def review_obstacle_proposals(
         )
 
     return tuple(reviewed)
+
+
+
+def require_localized_camera_proposals(
+    *,
+    proposals: tuple[ObstacleEvidence, ...],
+    observable_cell_count: int,
+    maximum_changed_fraction: float = 0.25,
+) -> None:
+    """Reject scene-wide changes before operator review."""
+
+    _validate_proposals(proposals)
+
+    if (
+        isinstance(observable_cell_count, bool)
+        or not isinstance(observable_cell_count, int)
+        or observable_cell_count <= 0
+    ):
+        raise DomainValidationError(
+            "observable_cell_count must be a positive integer."
+        )
+
+    if len(proposals) > observable_cell_count:
+        raise InvariantViolationError(
+            "proposal count cannot exceed observable cells."
+        )
+
+    if (
+        isinstance(maximum_changed_fraction, bool)
+        or not isinstance(
+            maximum_changed_fraction,
+            (int, float),
+        )
+    ):
+        raise DomainValidationError(
+            "maximum_changed_fraction must be numeric."
+        )
+
+    normalized_fraction = float(
+        maximum_changed_fraction
+    )
+
+    if (
+        not isfinite(normalized_fraction)
+        or normalized_fraction <= 0.0
+        or normalized_fraction > 1.0
+    ):
+        raise DomainValidationError(
+            "maximum_changed_fraction must be finite "
+            "and within (0, 1]."
+        )
+
+    changed_fraction = (
+        len(proposals)
+        / observable_cell_count
+    )
+
+    if changed_fraction > normalized_fraction:
+        raise InvariantViolationError(
+            "camera proposals indicate scene-wide visual "
+            "drift; capture a fresh same-state reference."
+        )
+
+
+def merge_persistent_obstacle_evidence(
+    *,
+    existing_confirmed_positions: frozenset[Position],
+    reviewed_evidence: tuple[ObstacleEvidence, ...],
+) -> tuple[ObstacleEvidence, ...]:
+    """Carry prior obstacles unless explicitly reviewed again."""
+
+    _validate_position_set(
+        "existing_confirmed_positions",
+        existing_confirmed_positions,
+    )
+    _validate_reviewed_evidence(reviewed_evidence)
+
+    reviewed_positions = frozenset(
+        item.position
+        for item in reviewed_evidence
+    )
+
+    retained = tuple(
+        ObstacleEvidence(
+            position=position,
+            source=ObstacleEvidenceSource.OPERATOR,
+            status=ObstacleEvidenceStatus.CONFIRMED,
+            confidence=1.0,
+        )
+        for position in sorted(
+            (
+                existing_confirmed_positions
+                - reviewed_positions
+            ),
+            key=lambda value: (value.y, value.x),
+        )
+    )
+
+    return retained + reviewed_evidence
+
+
+def _validate_reviewed_evidence(
+    reviewed_evidence: object,
+) -> None:
+    """Validate unique explicit operator decisions."""
+
+    if not isinstance(reviewed_evidence, tuple):
+        raise DomainValidationError(
+            "reviewed_evidence must be a tuple."
+        )
+
+    positions: set[Position] = set()
+
+    for item in reviewed_evidence:
+        if not isinstance(item, ObstacleEvidence):
+            raise DomainValidationError(
+                "every reviewed item must be "
+                "an ObstacleEvidence."
+            )
+
+        if (
+            item.source
+            is not ObstacleEvidenceSource.OPERATOR
+            or item.status
+            not in {
+                ObstacleEvidenceStatus.CONFIRMED,
+                ObstacleEvidenceStatus.CLEARED,
+            }
+        ):
+            raise InvariantViolationError(
+                "reviewed evidence must be an explicit "
+                "OPERATOR decision."
+            )
+
+        if item.position in positions:
+            raise InvariantViolationError(
+                "reviewed evidence positions must be unique."
+            )
+
+        positions.add(item.position)
 
 
 def _validate_proposals(
