@@ -247,6 +247,7 @@ required.
 | `6aca0af` | Bounded camera-confirmed turn primitives |
 | `1c26258` | Camera-confirmed physical `ControlPort` |
 | `15a0cc7` | Guarded camera-confirmed motion diagnostic |
+| `eb24c5d` | Bounded retry for incomplete ESP32-CAM responses |
 
 The Batch B physical-perception boundary now composes calibrated camera
 capture, ArUco localization, deterministic timestamps, and interpreted Arduino
@@ -276,11 +277,13 @@ automatic motor shutdown after host disconnection. The Python bounded-motion
 diagnostic additionally verifies preflight sensors, requires explicit
 wheels-lifted authorization, and restores `ESTOPPED/LATCHED`.
 
-Batch C is complete at the bounded primitive boundary. Batch D now has an
-offline-validated physical `ControlPort`: Arduino completion is necessary but
-never sufficient, and success requires exact post-command camera confirmation
-of the adjacent cell or cardinal heading. The charged-battery physical run of
-that control boundary remains pending.
+Batch C is complete at the bounded primitive boundary. Batch D has a
+physically exercised `ControlPort`: Arduino completion is necessary but never
+sufficient, and success requires exact post-command camera confirmation of the
+adjacent cell or cardinal heading. A left turn was accepted after exact
+`NORTH`-to-`WEST` confirmation. Two insufficient right turns and one
+insufficient forward movement were rejected and safely returned to
+`ESTOPPED/LATCHED`.
 
 These batches preserve the platform-independent I-0.8 core. OpenCV and NumPy
 remain optional vision dependencies, and PySerial remains an optional hardware
@@ -289,8 +292,8 @@ dependency.
 ## 9. Current Verification Record
 
 The current repository, refreshed camera calibration, adaptive light policy,
-fused physical perception, bounded motion, and offline camera-confirmed control
-verification were completed through 2026-10-25. Earlier full-grid ArUco
+fused physical perception, bounded motion, and live camera-confirmed control
+verification were completed through 2026-10-26. Earlier full-grid ArUco
 validation was performed on 2026-10-05.
 
 | Verification | Result |
@@ -349,8 +352,12 @@ validation was performed on 2026-10-05.
 | Physical motor immobility throughout all passive fused tests | Passed |
 | `python tools/check_project_structure.py` | Passed |
 | Camera-confirmed physical-control unit validation | Passed offline |
-| Guarded camera-confirmed diagnostic validation | Passed offline |
-| Complete automated test suite | Passed: 581 tests |
+| Guarded camera-confirmed `TURN_LEFT` | Passed: `(3,3) NORTH` to `(3,3) WEST` |
+| Two insufficient `TURN_RIGHT` attempts | Safely rejected; pose remained `(3,3) WEST` |
+| Insufficient 250 ms `MOVE_FORWARD` | Safely rejected; about 11 pixels, same logical cell |
+| Final safety state after every live diagnostic | Passed: `ESTOPPED/LATCHED` |
+| Interrupted ESP32-CAM response recovery | Passed: three bounded attempts |
+| Complete automated test suite | Passed: 583 tests |
 | `python -m ruff check .` | Passed |
 | `python -m mypy src` plus guarded diagnostic checks | Passed: 63 source files |
 | `python -m pip check` | Passed: no broken requirements |
@@ -409,8 +416,9 @@ Otherwise the detected object remains a normal obstacle.
 
 Supervised bounded movement is enabled. Movement-specific `ACK/DONE`, local
 safety intervention, communication-loss bounds, and camera-confirmed domain
-pose evaluation are implemented. The new combined control path is validated
-offline and awaits its charged-battery physical diagnostic.
+pose evaluation are implemented and physically exercised. Exact confirmed
+motion is accepted; insufficient motion is rejected and followed by a latched
+emergency stop.
 
 ## 10. Planned Integration Batches
 
@@ -483,15 +491,25 @@ diagnostic that always restores the safety latch.
 - [x] reject Arduino completion without matching camera pose;
 - [x] normalize blocked, timeout, communication-loss, and emergency outcomes;
 - [x] guarantee final emergency-stop cleanup in the guarded diagnostic;
-- [ ] validate camera-confirmed forward cell arrival with a charged battery;
-- [ ] validate both camera-confirmed cardinal turns with a charged battery;
-- [ ] record the accepted physical limitations of the current chassis.
+- [x] physically validate an exact camera-confirmed left cardinal turn;
+- [x] physically validate safe rejection of insufficient right-turn outcomes;
+- [x] physically validate safe rejection of insufficient forward movement;
+- [x] record the accepted physical limitations of the current chassis.
 
-Exact open-loop 20 cm and 90-degree repeatability is not required from the
-current mechanically inconsistent prototype. V1 acceptance instead requires
-safe bounded actuation followed by the exact expected logical cell and cardinal
-heading from overhead perception. Higher trajectory precision is deferred to a
-replacement robot platform and future Version 2 work.
+The hardware investigation started during I-0.9. The drive motors were changed
+to isolate the cause, but the intermittent imbalance remained. Ground tests
+nonetheless demonstrated obstacle avoidance and containment inside the black
+boundary. Multiple motor offsets, speed values, restart boosts, and movement
+durations were calibrated in search of the best alignment. These measures
+improved individual runs but did not provide repeatable two-wheel startup.
+
+The I-1.0 camera-confirmed tests now establish the boundary clearly: the
+software correctly accepts exact logical motion, rejects insufficient motion,
+stops the motors, and restores `ESTOPPED/LATCHED`; the current chassis cannot
+reliably realize every requested trajectory. Successful adjacent-cell forward
+motion and repeatable right rotation are therefore platform-qualification
+targets for a better-adapted replacement robot and future Version 2 work, not
+unverified software claims.
 
 ### Batch E - End-to-End Physical V1
 
@@ -529,7 +547,9 @@ The current I-1.0 implementation has these explicit limitations:
 - fused local sensor facts are available in physical `PerceptionSnapshot`
   values but are not yet consumed by authorized target-arrival execution;
 - the open-loop two-wheel chassis exhibits intermittent startup imbalance and
-  small trajectory drift, so camera confirmation remains mandatory;
+  trajectory drift despite motor changes and repeated I-0.9 calibration, so it
+  is not considered suitable for repeatable exact navigation and camera
+  confirmation remains mandatory;
 - exact 20 cm movements and 90-degree rotations remain uncalibrated;
 - the validated I-0.9 autonomous firmware remains preserved as an experimental
   baseline and is not modified by I-1.0;
@@ -557,8 +577,10 @@ The current I-1.0 implementation has these explicit limitations:
 - [x] Validate movement `ACK/DONE` and communication-loss behaviour.
 - [x] Implement camera-confirmed physical movement evaluation.
 - [x] Prepare an explicitly authorized camera-confirmed motion diagnostic.
-- [ ] Validate camera-confirmed cell movements with a charged battery.
-- [ ] Validate camera-confirmed cardinal rotations with a charged battery.
+- [x] Exercise camera-confirmed movement with a charged battery.
+- [x] Validate exact left-turn acceptance and safe rejection of insufficient
+  forward and right-turn outcomes.
+- [x] Document that repeatable precision requires a better-adapted robot.
 - [x] Integrate physical target and obstacle observations.
 - [ ] Execute complete outbound, collection, and return missions.
 - [ ] Run complete physical V1 regression scenarios.

@@ -43,8 +43,8 @@ The current I-1.0 implementation includes:
   preflight sensors and restores `ESTOPPED/LATCHED`;
 - a physical `ControlPort` implementation that accepts success only after
   exact camera confirmation of the expected grid cell and cardinal heading;
-- a guarded camera-confirmed motion diagnostic, validated offline and awaiting
-  its charged-battery physical run;
+- a guarded camera-confirmed motion diagnostic, exercised physically with
+  exact success acceptance and safe rejection of unconfirmed outcomes;
 - a read-only serial diagnostic physically validated on COM3;
 - read-only five-sensor telemetry and typed Python snapshots, physically
   validated while the controller remained `ESTOPPED/LATCHED`;
@@ -96,11 +96,27 @@ conditions, and ceiling-light illumination. Each run preserved confirmed
 ArUco pose, immutable timestamps, `ESTOPPED/LATCHED`, and complete motor
 immobility.
 
-Charged-battery validation of camera-confirmed cell movement and cardinal
-turns, authorized target-cell arrival logic, and complete end-to-end V1 mission
-execution remain in progress. Exact open-loop trajectory precision is not a V1
-claim for this mechanically inconsistent chassis; every accepted physical step
-must instead end in the expected camera-confirmed cell and cardinal heading.
+The camera-confirmed control boundary has now been exercised on the ground.
+`TURN_LEFT` completed from `NORTH` to `WEST` in the same logical cell. Two
+insufficient `TURN_RIGHT` attempts and one insufficient `MOVE_FORWARD` attempt
+were all rejected, stopped, and returned to `ESTOPPED/LATCHED` rather than
+being reported as successful motion.
+
+The hardware investigation began during I-0.9, not with these final tests.
+The drive motors were changed to isolate the fault, but the intermittent
+imbalance remained. Earlier ground runs still demonstrated obstacle avoidance
+and reliable black-boundary containment, while repeated motor-offset, speed,
+restart-boost, and duration calibrations were used to obtain the best practical
+alignment. The current tests confirm that the prototype chassis is not
+mechanically suitable for repeatable exact cell and cardinal movement, even
+though the software correctly supervises and verifies every outcome.
+
+Exact open-loop trajectory precision is therefore not claimed for this
+prototype. Higher physical precision and repeatability will be qualified on a
+better-adapted replacement robot, while accepted software motion still requires
+the expected camera-confirmed cell and cardinal heading. Authorized
+target-cell arrival and complete end-to-end mission execution remain in
+progress.
 
 The current implementation record is available in the
 [I-1.0 integration draft](docs/implementation/draft_I-1.0.md).
@@ -185,8 +201,10 @@ contains no direct graphical or hardware dependency.
 
 Physical hardware diagnostics and calibration are validated through I-0.9.
 I-1.0 now includes camera-based perception, supervised microcontroller motion,
-and offline-validated camera-confirmed physical control. Charged-battery
-control validation and end-to-end physical V1 integration remain in progress.
+and physically exercised camera-confirmed control. The control boundary accepts
+exact confirmed outcomes and safely rejects insufficient movement. End-to-end
+physical V1 integration remains in progress, while repeatable trajectory
+precision is deferred to a better-adapted robot platform.
 
 ## Public status command
 

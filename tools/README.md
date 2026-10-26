@@ -250,9 +250,11 @@ confirmed `ESTOPPED/LATCHED` state.
 as successful only when the post-command camera observation exactly matches
 the expected adjacent cell or cardinal heading.
 
-The diagnostic is prepared and validated offline. Its first live run must wait
-for a fully charged robot battery, a stable calibrated camera, clear local
-sensors, and direct operator supervision.
+The diagnostic is validated offline and has been exercised live with a fully
+charged battery, stable calibrated camera, clear local sensors, and direct
+operator supervision. A confirmed left turn succeeded exactly, while
+insufficient right-turn and forward outcomes were rejected and ended in
+`ESTOPPED/LATCHED`.
 
 The target lamp must remain off when automatic ambient calibration is used.
 Close the Arduino Serial Monitor and run exactly one command with:
@@ -276,4 +278,11 @@ requests final `ESTOP`.
 A firmware `DONE|OK` alone is insufficient. The command succeeds only if the
 camera confirms the exact domain pose. A hazard, unexpected pose, serial
 failure, or unconfirmed result fails explicitly and preserves or restores the
-safety latch.
+safety latch. Interrupted ESP32-CAM response bodies are retried at most three
+times; repeated incomplete responses still fail explicitly.
+
+The current chassis has a documented intermittent wheel-start imbalance.
+Multiple I-0.9 motor changes and calibration attempts did not eliminate it.
+The diagnostic must therefore be interpreted as a software supervision and
+pose-confirmation tool, not as a guarantee that this particular chassis can
+repeat every requested trajectory.
